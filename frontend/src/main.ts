@@ -1,4 +1,3 @@
-import { struct, u32, array, taggedUnion, f32 } from "./struct";
 import init from "./wasm/main.wasm?init";
 
 function isUnreachable(value: never): never {
@@ -41,35 +40,49 @@ const instance = await init({
   },
 });
 
-const { memory, main, frame, getInputPtr, getInputLen, getOutputPtr, ...unused } = instance.exports as any;
-
-const buffer = (memory as WebAssembly.Memory).buffer;
-
+const { memory, main, frame, getMaxCommands, getCommandsArgsPtr, getCommandsTypesPtr, getCommandsLength, ...unused } =
+  instance.exports as any;
 const unusedNames = Object.keys(unused);
 if (unusedNames.length) throw new Error(`Unused export(s): ${unusedNames.join(", ")}`);
 
-const input = new Uint8Array(buffer, getInputPtr(), getInputLen());
+const buffer = (memory as WebAssembly.Memory).buffer;
 
-const Rect = struct({ x: f32, y: f32, width: f32, height: f32 });
-const RGBA = struct({ r: u32, g: u32, b: u32, alpha: u32 });
+const MAX_COMMANDS: number = getMaxCommands();
 
-const Commands = struct({
-  length: u32,
-  items: array(
-    8,
-    taggedUnion({
-      clearRect: Rect,
-      fillRect: Rect,
-      setFillStyle: RGBA,
-    }),
-  ),
-});
+const commandsTypes = new Uint32Array(buffer, getCommandsTypesPtr(), MAX_COMMANDS);
+const commandsArgs = new Float32Array(buffer, getCommandsArgsPtr(), MAX_COMMANDS * 7);
 
-const commandsView = Commands.createView();
+enum CommandType {
+  none,
 
-commandsView.bind(buffer, getOutputPtr());
+  save,
+  restore,
 
-const commands = commandsView.get();
+  beginPath,
+  moveTo,
+  lineTo,
+  arc,
+  ellipse,
+  quadraticCurveTo,
+  bezierCurveTo,
+
+  stroke,
+  fill,
+
+  fillRect,
+  strokeRect,
+  clearRect,
+
+  translate,
+  scale,
+  rotate,
+
+  lineWidth,
+
+  fillStyle,
+  strokeStyle,
+  shadowColor,
+}
 
 main();
 
@@ -80,24 +93,114 @@ function render() {
 
   frame(performance.now(), width, height);
 
-  for (let i = 0; i < commands.length; i++) {
-    const command = commands.items[i];
-    switch (command.tag) {
-      case "clearRect":
-        ctx.clearRect(command.payload.x, command.payload.y, command.payload.width, command.payload.height);
-        break;
-      case "fillRect":
-        ctx.fillRect(command.payload.x, command.payload.y, command.payload.width, command.payload.height);
-        break;
+  const commandsLength = getCommandsLength();
 
-      case "setFillStyle":
-        ctx.fillStyle = `rgb(${command.payload.r} ${command.payload.g} ${command.payload.b} / ${command.payload.alpha / 255})`;
-        break;
+  for (let i = 0; i < commandsLength; i++) {
+    const type: CommandType = commandsTypes[i];
 
-      default:
-        isUnreachable(command);
+    switch (type) {
+      case CommandType.none:
+        continue;
+
+      case CommandType.save:
+        ctx.save();
+        continue;
+      case CommandType.restore:
+        ctx.restore();
+        continue;
+
+      case CommandType.stroke:
+        ctx.stroke();
+        continue;
+      case CommandType.fill:
+        ctx.fill();
+        continue;
+
+      case CommandType.beginPath:
+        ctx.beginPath();
+        continue;
     }
+
+    const offset = i * 7;
+
+    const a = commandsArgs[offset];
+
+    switch (type) {
+      case CommandType.rotate:
+        ctx.rotate(a);
+        continue;
+      case CommandType.lineWidth:
+        ctx.lineWidth = a;
+        continue;
+    }
+    const b = commandsArgs[offset + 1];
+
+    switch (type) {
+      case CommandType.moveTo:
+        ctx.moveTo(a, b);
+        continue;
+      case CommandType.lineTo:
+        ctx.lineTo(a, b);
+        continue;
+      case CommandType.translate:
+        ctx.translate(a, b);
+        continue;
+      case CommandType.scale:
+        ctx.scale(a, b);
+        continue;
+    }
+    const c = commandsArgs[offset + 2];
+    const d = commandsArgs[offset + 3];
+
+    switch (type) {
+      case CommandType.quadraticCurveTo:
+        ctx.quadraticCurveTo(a, b, c, d);
+        continue;
+      case CommandType.fillRect:
+        ctx.fillRect(a, b, c, d);
+        continue;
+      case CommandType.strokeRect:
+        ctx.strokeRect(a, b, c, d);
+        continue;
+      case CommandType.clearRect:
+        ctx.clearRect(a, b, c, d);
+        continue;
+
+      case CommandType.fillStyle:
+        ctx.fillStyle = `rgb(${a} ${b} ${c} / ${d})`;
+        continue;
+      case CommandType.strokeStyle:
+        ctx.strokeStyle = `rgb(${a} ${b} ${c} / ${d})`;
+        continue;
+      case CommandType.shadowColor:
+        ctx.shadowColor = `rgb(${a} ${b} ${c} / ${d})`;
+        continue;
+    }
+
+    const e = commandsArgs[offset + 4];
+    switch (type) {
+      case CommandType.arc:
+        ctx.arc(a, b, c, d, e);
+        continue;
+    }
+
+    const f = commandsArgs[offset + 5];
+    switch (type) {
+      case CommandType.bezierCurveTo:
+        ctx.bezierCurveTo(a, b, c, d, e, f);
+        continue;
+    }
+
+    const g = commandsArgs[offset + 6];
+    switch (type) {
+      case CommandType.ellipse:
+        ctx.ellipse(a, b, c, d, e, f, g);
+        continue;
+    }
+
+    isUnreachable(type);
   }
+
   animationFrameRequestId = requestAnimationFrame(render);
 }
 
