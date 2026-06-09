@@ -13,11 +13,10 @@ const resizeObserver = new ResizeObserver((entries) => {
   for (const entry of entries) {
     width = entry.contentBoxSize[0].inlineSize;
     height = entry.contentBoxSize[0].blockSize;
-    canvas.width = width * devicePixelRatio;
-    canvas.height = height * devicePixelRatio;
+    canvas.width = width;
+    canvas.height = height;
     canvas.style.width = width + "px";
     canvas.style.height = height + "px";
-    ctx.scale(devicePixelRatio, devicePixelRatio);
     if (animationFrameRequestId) cancelAnimationFrame(animationFrameRequestId);
     render();
   }
