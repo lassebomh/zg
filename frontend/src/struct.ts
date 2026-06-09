@@ -1,12 +1,3 @@
-function assert(value: any): asserts value {
-  if (!value) {
-    throw new Error("Assertion failed");
-  }
-}
-function fail(msg?: string): never {
-  throw new Error(msg ?? "Assertion failed");
-}
-
 export interface Type<T> {
   size: number;
   alignment: number;
@@ -102,65 +93,6 @@ export const bool: Type<boolean> = {
   },
 };
 
-export function flags<const T extends string>(...flags: T[]): Type<{ [K in T]: boolean }> {
-  const size = Math.ceil(flags.length / 32) * 4;
-  const alignment = size;
-
-  return {
-    alignment,
-    size,
-    createView() {
-      const obj = {} as Record<T, boolean>;
-
-      let values!: Uint8Array;
-
-      Object.defineProperty(obj, "toJSON", {
-        configurable: false,
-        enumerable: false,
-        value: () => ({ ...obj }),
-      });
-
-      for (let i = 0; i < flags.length; i++) {
-        const flag = flags[i];
-
-        const byte = Math.floor(i / 8);
-
-        const bit = 1 << (i % 8);
-        const mask = 0xff ^ bit;
-
-        console.log(flag, i, mask.toString(2), bit.toString(2), byte);
-
-        Object.defineProperty(obj, flag, {
-          configurable: false,
-          enumerable: true,
-          get() {
-            return (values[byte] & bit) != 0;
-          },
-          set(value) {
-            let newByte = values[byte] & mask;
-            if (value) newByte ||= bit;
-            values[byte] = newByte;
-          },
-        });
-      }
-
-      return {
-        bind(buffer, offset) {
-          values = new Uint8Array(buffer, offset, size);
-        },
-        get() {
-          return obj;
-        },
-        set(value) {
-          for (const key in value) {
-            obj[key] = value[key];
-          }
-        },
-      };
-    },
-  };
-}
-
 export function struct<T extends { [K in string]: Type<any> }>(fields: T): Type<{ [K in keyof T]: ValueOf<T[K]> }> {
   const fieldsNames = Object.keys(fields);
   const fieldsTypes = Object.values(fields);
@@ -175,13 +107,13 @@ export function struct<T extends { [K in string]: Type<any> }>(fields: T): Type<
     let offset = 0;
     for (const fieldName in fields) {
       const fieldType = fields[fieldName];
-      const padding = offset % fieldType.alignment;
-      offset += padding;
+      const misalignment = offset % fieldType.alignment;
+      if (misalignment !== 0) offset += fieldType.alignment - misalignment;
       fieldOffsets[fieldName] = offset;
       offset += fieldType.size;
     }
-    const padding = offset % alignment;
-    offset += padding;
+    const misalignment = offset % alignment;
+    if (misalignment !== 0) offset += alignment - misalignment;
     size = offset;
   }
   return {
@@ -240,11 +172,6 @@ export function struct<T extends { [K in string]: Type<any> }>(fields: T): Type<
 
 interface FixedArray<Len extends number, T> extends Iterable<T> {
   readonly length: Len;
-  [x: number]: T;
-}
-interface Vector<Cap extends number, T> extends Iterable<T> {
-  length: number;
-  readonly capacity: Cap;
   [x: number]: T;
 }
 
@@ -330,130 +257,6 @@ export function array<Len extends number, T extends Type<any>>(
   };
 }
 
-export function vector<Len extends number, T extends Type<any>>(capacity: Len, type: T): Type<Vector<Len, ValueOf<T>>> {
-  const lengthType = u32;
-
-  return {
-    alignment: Math.max(lengthType.alignment, type.alignment),
-    size: lengthType.size + type.size * capacity,
-    createView() {
-      const elementViews: BufferView<ValueOf<T>>[] = new Array(capacity);
-
-      for (let i = 0; i < capacity; i++) {
-        elementViews[i] = type.createView();
-      }
-
-      const lengthView = lengthType.createView();
-
-      let elementsBytes!: Uint8Array;
-
-      const obj = {} as Vector<Len, ValueOf<T>>;
-
-      Object.defineProperties(obj, {
-        capacity: {
-          configurable: false,
-          enumerable: false,
-          writable: false,
-          value: capacity,
-        },
-        length: {
-          configurable: false,
-          enumerable: false,
-          get: lengthView.get,
-          set(value) {
-            if (!(Number.isFinite(value) && value >= 0 && value <= capacity)) {
-              fail(`Tried updating length to ${value} which is not between [0, ${capacity}]`);
-            }
-            const length = lengthView.get();
-            if (value < length) {
-              elementsBytes.fill(0, value * type.size, length * type.size);
-            }
-            lengthView.set(value);
-          },
-        },
-        toJSON: {
-          configurable: false,
-          enumerable: false,
-          writable: false,
-          value: () => [...obj],
-        },
-        [Symbol.iterator]: {
-          configurable: false,
-          enumerable: false,
-          writable: false,
-          value: function* () {
-            for (const elementView of elementViews.slice(0, lengthView.get())) {
-              yield elementView.get();
-            }
-          },
-        },
-      });
-
-      for (let i = 0; i < capacity; i++) {
-        const elementView = elementViews[i];
-
-        Object.defineProperty(obj, i, {
-          configurable: false,
-          enumerable: true,
-          get() {
-            const length = lengthView.get();
-            if (!(i < length)) {
-              fail(`Index out of bounds (index=${i}, length=${length})`);
-            }
-            return elementView.get();
-          },
-          set(value) {
-            const length = lengthView.get();
-            if (!(i < length)) {
-              fail(`Update index out of bounds (index=${i}, length=${length})`);
-            }
-            elementView.set(value);
-          },
-        });
-
-        const ni = -(i + 1);
-
-        Object.defineProperty(obj, ni, {
-          configurable: false,
-          enumerable: false,
-          get() {
-            const length = lengthView.get();
-            if (length + ni < 0) {
-              fail(`Index out of bounds (index=${ni}, length=${length})`);
-            }
-            return elementViews[length + ni].get();
-          },
-          set(value) {
-            const length = lengthView.get();
-            if (length + ni < 0) {
-              fail(`Update index out of bounds (index=${ni}, length=${length})`);
-            }
-            return elementViews[length + ni].set(value);
-          },
-        });
-      }
-
-      Object.seal(obj);
-      return {
-        bind(buffer, offset = 0) {
-          lengthView.bind(buffer, offset);
-          for (let i = 0; i < capacity; i++) {
-            const elementView = elementViews[i];
-            elementView.bind(buffer, offset + lengthType.size + type.size * i);
-          }
-          elementsBytes = new Uint8Array(buffer, offset + lengthType.size, type.size * capacity);
-        },
-        get: () => obj,
-        set: (value) => {
-          for (let i = 0; i < capacity; i++) {
-            const elementValue = elementViews[i];
-            elementValue.set(value[i]);
-          }
-        },
-      };
-    },
-  };
-}
 export function vec2(type: Type<number>) {
   return struct({
     x: type,
@@ -479,7 +282,6 @@ export function vec4(type: Type<number>) {
 type DiscriminatedUnion<T> = {
   [K in keyof T]: { [P in K]: T[K] } & { [P in Exclude<keyof T, K>]: undefined };
 }[keyof T];
-
 export function union<T extends { [K in string]: Type<any> }>(
   variants: T,
 ): Type<DiscriminatedUnion<{ [K in keyof T]: ValueOf<T[K]> }>> {
@@ -489,11 +291,19 @@ export function union<T extends { [K in string]: Type<any> }>(
   const variantsTypes = Object.values(variants);
 
   const variantSize = Math.max(...variantsTypes.map((f) => f.size));
-  const alignment = Math.max(...variantsTypes.map((f) => f.alignment));
+  const alignment = Math.max(tagType.alignment, ...variantsTypes.map((f) => f.alignment));
+
+  let payloadOffset = tagType.size;
+  const payloadMisalignment = payloadOffset % alignment;
+  if (payloadMisalignment !== 0) payloadOffset += alignment - payloadMisalignment;
+
+  let size = payloadOffset + variantSize;
+  const trailingMisalignment = size % alignment;
+  if (trailingMisalignment !== 0) size += alignment - trailingMisalignment;
 
   return {
     alignment,
-    size: tagType.size + variantSize,
+    size,
     createView() {
       const tagView = tagType.createView();
       let variantBytes!: Uint8Array;
@@ -541,10 +351,10 @@ export function union<T extends { [K in string]: Type<any> }>(
       return {
         bind(buffer, offset = 0) {
           tagView.bind(buffer, offset);
-          variantBytes = new Uint8Array(buffer, offset + tagType.size, variantSize);
+          variantBytes = new Uint8Array(buffer, offset + payloadOffset, variantSize);
           for (const variantName in variantViews) {
             const variantView = variantViews[variantName];
-            variantView.bind(buffer, offset + tagType.size);
+            variantView.bind(buffer, offset + payloadOffset);
           }
         },
         get: () => obj,
@@ -558,6 +368,69 @@ export function union<T extends { [K in string]: Type<any> }>(
             const variantView = variantViews[variantName];
             variantView.set(variantValue);
           }
+        },
+      };
+    },
+  };
+}
+type TaggedUnion<T> = {
+  [K in keyof T]: { tag: K; payload: T[K] };
+}[keyof T];
+
+export function taggedUnion<T extends { [K in string]: Type<any> }>(
+  variants: T,
+): Type<TaggedUnion<{ [K in keyof T]: ValueOf<T[K]> }>> {
+  const tagType = u32;
+
+  const variantsNames = Object.keys(variants);
+  const variantsTypes = Object.values(variants);
+
+  const variantSize = Math.max(...variantsTypes.map((f) => f.size));
+  const alignment = Math.max(tagType.alignment, ...variantsTypes.map((f) => f.alignment));
+
+  let payloadOffset = tagType.size;
+  const payloadMisalignment = payloadOffset % alignment;
+  if (payloadMisalignment !== 0) payloadOffset += alignment - payloadMisalignment;
+
+  let size = payloadOffset + variantSize;
+  const trailingMisalignment = size % alignment;
+  if (trailingMisalignment !== 0) size += alignment - trailingMisalignment;
+
+  return {
+    alignment,
+    size,
+    createView() {
+      const tagView = tagType.createView();
+      let variantBytes!: Uint8Array;
+
+      const variantViews: { [K in keyof T]: BufferView<T[K]> } = {} as any;
+
+      for (const variantName in variants) {
+        const variantType = variants[variantName];
+        variantViews[variantName] = variantType.createView();
+      }
+
+      return {
+        bind(buffer, offset = 0) {
+          tagView.bind(buffer, offset);
+          variantBytes = new Uint8Array(buffer, offset + payloadOffset, variantSize);
+          for (const variantName in variantViews) {
+            const variantView = variantViews[variantName];
+            variantView.bind(buffer, offset + payloadOffset);
+          }
+        },
+        get() {
+          const tagIndex = tagView.get();
+          const name = variantsNames[tagIndex];
+          const view = variantViews[name];
+          return { tag: name, payload: view.get() } as any;
+        },
+        set(value) {
+          const tagIndex = variantsNames.indexOf(value.tag as string);
+          if (tagIndex === -1) throw new Error(`Unknown variant: ${String(value.tag)}`);
+          tagView.set(tagIndex);
+          variantBytes.fill(0);
+          variantViews[value.tag as string].set(value.payload);
         },
       };
     },

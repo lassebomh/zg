@@ -1,5 +1,8 @@
-extern fn jsLogf32(n: f64) void;
-extern fn jsLogu8(n: u8) void;
+const std = @import("std");
+
+extern fn jsLogf32(n: f32) void;
+extern fn jsLogu64(n: u64) void;
+extern fn jsLogu32(n: u32) void;
 
 pub const MyStruct = struct {
     bar: f32,
@@ -17,52 +20,53 @@ export fn getInputLen() usize {
     return @sizeOf(@TypeOf(data));
 }
 
-const DrawCommand = union(enum) {
-    clearRect: struct { x: u32, y: u32, width: u32, height: u32 },
-    fillRect: struct { x: u32, y: u32, width: u32, height: u32 },
-};
-
+const DrawCommand = extern struct { tag: enum(u32) {
+    clearRect,
+    fillRect,
+}, payload: extern union {
+    clearRect: extern struct { x: u32, y: u32, width: u32, height: u32 },
+    fillRect: extern struct { x: u32, y: u32, width: u32, height: u32 },
+} };
 const DrawCommands = struct {
     length: u32,
-    commands: [8]DrawCommand,
+    items: [8]DrawCommand,
 };
-
 var output: DrawCommands = undefined;
 export fn getOutputPtr() *DrawCommands {
     return &output;
 }
-export fn getOutputLen() usize {
-    return @sizeOf(@TypeOf(output));
-}
-export fn getDrawCommandLen() usize {
-    return @sizeOf(DrawCommand);
-}
 
 export fn main() void {}
 
-export fn frame(time: f64, screenWidth: u32, screenHeight: u32) void {
-    // jsLogf32(time);
-    _ = time;
-    _ = screenHeight;
-    _ = screenWidth;
+export fn frame(time: f32, screenWidth: u32, screenHeight: u32) void {
+    jsLogf32(time);
+    // jsLogf32(screenWidth);
+    // jsLogf32(screenHeight);
+    // _ = time;
+    // _ = screenHeight;
+    // _ = screenWidth;
 
-    output.commands[output.length] = DrawCommand{
-        .clearRect = .{
+    output = std.mem.zeroInit(DrawCommands, .{});
+
+    output.items[output.length] = DrawCommand{
+        .tag = .clearRect,
+        .payload = .{ .clearRect = .{
             .x = 1,
             .y = 2,
             .width = 3,
             .height = 4,
-        },
+        } },
     };
     output.length += 1;
 
-    output.commands[output.length] = DrawCommand{
-        .fillRect = .{
+    output.items[output.length] = DrawCommand{
+        .tag = .fillRect,
+        .payload = .{ .fillRect = .{
             .x = 5,
             .y = 6,
-            .width = 7,
-            .height = 8,
-        },
+            .width = screenWidth / 2,
+            .height = screenHeight / 2,
+        } },
     };
     output.length += 1;
 }
