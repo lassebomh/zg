@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
     app.rdynamic = true;
 
     const install_wasm = b.addInstallArtifact(app, .{
-        .dest_dir = .{ .override = .{ .custom = "../frontend/public" } },
+        .dest_dir = .{ .override = .{ .custom = "../frontend/src/wasm" } },
     });
 
     b.getInstallStep().dependOn(&install_wasm.step);

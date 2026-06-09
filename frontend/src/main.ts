@@ -1,4 +1,5 @@
-import { struct, u32, array, taggedUnion } from "./struct";
+import { struct, u32, array, taggedUnion, f32 } from "./struct";
+import init from "./wasm/main.wasm?init";
 
 function isUnreachable(value: never): never {
   throw new Error("Unreachable");
@@ -18,11 +19,12 @@ const resizeObserver = new ResizeObserver((entries) => {
     canvas.style.width = width + "px";
     canvas.style.height = height + "px";
     ctx.scale(devicePixelRatio, devicePixelRatio);
+    if (animationFrameRequestId) cancelAnimationFrame(animationFrameRequestId);
     render();
   }
 });
 
-const wasm = await WebAssembly.instantiateStreaming(fetch("./main.wasm"), {
+const instance = await init({
   env: {
     /**
      * @param {number} num
@@ -39,7 +41,7 @@ const wasm = await WebAssembly.instantiateStreaming(fetch("./main.wasm"), {
   },
 });
 
-const { memory, main, frame, getInputPtr, getInputLen, getOutputPtr, ...unused } = wasm.instance.exports as any;
+const { memory, main, frame, getInputPtr, getInputLen, getOutputPtr, ...unused } = instance.exports as any;
 
 const buffer = (memory as WebAssembly.Memory).buffer;
 
@@ -48,13 +50,17 @@ if (unusedNames.length) throw new Error(`Unused export(s): ${unusedNames.join(",
 
 const input = new Uint8Array(buffer, getInputPtr(), getInputLen());
 
+const Rect = struct({ x: f32, y: f32, width: f32, height: f32 });
+const RGBA = struct({ r: u32, g: u32, b: u32, alpha: u32 });
+
 const Commands = struct({
   length: u32,
   items: array(
     8,
     taggedUnion({
-      clearRect: struct({ x: u32, y: u32, width: u32, height: u32 }),
-      fillRect: struct({ x: u32, y: u32, width: u32, height: u32 }),
+      clearRect: Rect,
+      fillRect: Rect,
+      setFillStyle: RGBA,
     }),
   ),
 });
@@ -71,12 +77,8 @@ let animationFrameRequestId: number | undefined;
 
 function render() {
   if (width === 0 || height === 0) return;
-  if (animationFrameRequestId) {
-    cancelAnimationFrame(animationFrameRequestId);
-    animationFrameRequestId = undefined;
-  }
 
-  frame(performance.timeOrigin + performance.now(), width, height);
+  frame(performance.now(), width, height);
 
   for (let i = 0; i < commands.length; i++) {
     const command = commands.items[i];
@@ -86,6 +88,10 @@ function render() {
         break;
       case "fillRect":
         ctx.fillRect(command.payload.x, command.payload.y, command.payload.width, command.payload.height);
+        break;
+
+      case "setFillStyle":
+        ctx.fillStyle = `rgb(${command.payload.r} ${command.payload.g} ${command.payload.b} / ${command.payload.alpha / 255})`;
         break;
 
       default:
