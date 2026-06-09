@@ -102,7 +102,7 @@ const CommandType = enum(i32) {
     shadowColor,
 };
 
-const MAX_COMMANDS = 1000;
+const MAX_COMMANDS = 256;
 
 var commandsArgs: [MAX_COMMANDS][7]f32 = undefined;
 var commandsTypes: [MAX_COMMANDS]CommandType = undefined;
@@ -121,14 +121,26 @@ export fn getMaxCommands() u32 {
     return MAX_COMMANDS;
 }
 
+const Input = struct {
+    w: bool,
+    a: bool,
+    s: bool,
+    d: bool,
+    screen: @Vector(2, f32),
+    mouse: @Vector(2, f32),
+    mouse_left: bool,
+    mouse_right: bool,
+    mouse_middle: bool,
+};
+
 const v2 = struct {
-    fn fromRadians(angle: f32) @Vector(2, f32) {
+    fn radians(angle: f32) @Vector(2, f32) {
         return .{
             @cos(angle),
             @sin(angle),
         };
     }
-    fn fromDegrees(angle: f32) @Vector(2, f32) {
+    fn degrees(angle: f32) @Vector(2, f32) {
         return .{
             @cos(angle * (std.math.pi / 180.0)),
             @sin(angle * (std.math.pi / 180.0)),
@@ -331,10 +343,14 @@ export fn frame(timeOffset: u32, screenWidth: u32, screenHeight: u32) void {
     ctx.save();
     defer ctx.restore();
 
-    ctx.strokeStyle(RGBA.fromHSL(t, 1, 0.5));
-    ctx.lineWidth(20);
+    ctx.strokeStyle(RGBA.fromHSL(t / 2, 1, 0.5));
+    ctx.lineWidth(6);
     ctx.beginPath();
-    ctx.moveTo(screen / v2.fill(2));
-    ctx.lineTo(screen / v2.fill(2) + v2.fromDegrees(t) * v2.fill(@min(screen[0], screen[1]) / 2));
+
+    const dist = v2.fill(@min(screen[0], screen[1]) / 2);
+    const a = screen / v2.fill(2);
+    ctx.moveTo(a);
+    ctx.lineTo(a + v2.degrees(t / 8) * dist);
+
     ctx.stroke();
 }
