@@ -43,7 +43,7 @@ fn tick(g: *State, inp: *inputs.Inputs) void {
         move[1] += 1;
     }
 
-    move = v2.normalize(move) * v2.fill(15);
+    move = v2.clamp_length(move) * v2.fill(15);
 
     g.pos += move;
 

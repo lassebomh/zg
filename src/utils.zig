@@ -97,4 +97,8 @@ pub const v2 = packed struct(u32) {
             return vec / v2.fill(dist);
         }
     }
+    pub fn clamp_length(vec: v2.Value, max_length: f32) v2.Value {
+        const dist: f32 = @max(v2.length(vec), max_length);
+        return vec / v2.fill(dist);
+    }
 };
