@@ -72,14 +72,8 @@ pub const v2 = packed struct(u32) {
     pub const zero = fill(0);
     pub const one = fill(1);
 
-    pub fn xy(_x: f32, _y: f32) v2.Value {
-        return .{ _x, _y };
-    }
-    pub fn x(value: f32) v2.Value {
-        return @splat(value);
-    }
-    pub fn y(value: f32) v2.Value {
-        return @splat(value);
+    pub fn xy(x: f32, y: f32) v2.Value {
+        return .{ x, y };
     }
     pub fn fill(value: f32) v2.Value {
         return @splat(value);

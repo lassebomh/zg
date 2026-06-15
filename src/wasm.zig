@@ -9,7 +9,7 @@ const v2 = utils.v2;
 
 extern fn jsLogf32(n: f32) void;
 extern fn jsLogu64(n: u64) void;
-extern fn jsLogu32(n: u32) void;
+extern fn jsLogu32(n: i32) void;
 
 const Input = struct {
     w: bool,
@@ -46,12 +46,12 @@ fn tick(g: *State, inp: *inputs.Inputs) void {
     move = v2.normalize(move) * v2.fill(15);
 
     g.pos += move;
+
+    g.mouse = inp.mouse - inp.screen / v2.fill(2);
 }
 
 fn render(prev: *State, curr: *State, alpha: f32, screen: v2.Value) void {
     defer ctx.flush();
-
-    const pos = v2.lerp(prev.pos, curr.pos, v2.fill(alpha));
 
     ctx.save();
     defer ctx.restore();
@@ -62,8 +62,13 @@ fn render(prev: *State, curr: *State, alpha: f32, screen: v2.Value) void {
 
     ctx.translate(screen / v2.fill(2));
 
+    const pos = v2.lerp(prev.pos, curr.pos, v2.fill(alpha));
     ctx.fillStyle(RGBA.fromHex("#ff0000"));
     ctx.fillRect(pos, v2.xy(30, 30));
+
+    const mouse = v2.lerp(prev.mouse, curr.mouse, v2.fill(alpha));
+    ctx.fillStyle(RGBA.fromHex("#2288cc"));
+    ctx.fillRect(mouse, v2.xy(15, 15));
     // jsLogf32(pos[0]);
     // jsLogf32(pos[1]);
 }
@@ -73,7 +78,7 @@ const State = struct {
     mouse: v2.Value,
 };
 
-var prev_seen_tick: u32 = 0;
+var prev_seen_tick: i32 = 0;
 
 var prev_state: State = .{
     .pos = v2.zero,
@@ -84,14 +89,14 @@ var curr_state: State = .{
     .mouse = v2.zero,
 };
 
-export fn frame(timeOffset: u32, screenWidth: u32, screenHeight: u32) void {
+export fn frame(timeOffset: i32, screenWidth: i32, screenHeight: i32) void {
     const screen: v2.Value = .{
         @floatFromInt(screenWidth),
         @floatFromInt(screenHeight),
     };
 
     const ftick: f32 = @as(f32, @floatFromInt(timeOffset)) / TICK_RATE;
-    const itick: u32 = @trunc(ftick);
+    const itick: i32 = @trunc(ftick);
     const alpha = ftick - @floor(ftick);
 
     if (itick != prev_seen_tick) {
