@@ -7,9 +7,6 @@ const inputs = @import("./inputs.zig");
 const RGBA = utils.RGBA;
 const v2 = utils.v2;
 
-extern fn jsLogf32(n: f32) void;
-extern fn jsLogu64(n: u64) void;
-extern fn jsLogu32(n: i32) void;
 extern fn jsLogStr(ptr: [*]u8, len: u32) void;
 
 const Input = struct {
@@ -29,11 +26,13 @@ const wal = std.heap.wasm_allocator;
 pub fn log(comptime fmt: []const u8, args: anytype) void {
     const slice = std.fmt.allocPrint(wal, fmt, args) catch unreachable;
     jsLogStr(slice.ptr, slice.len);
+    wal.free(slice);
 }
 
 export fn main() void {
     // const alloc = wal.alloc(*const u8, 14) catch unreachable;
-    log("{s} {}\n", .{ "hello there!", 123123 });
+    const states = States.init();
+    log("{}\n", .{states});
 }
 
 const TICK_RATE = 1000.0 / 60.0;
@@ -61,7 +60,7 @@ fn tick(g: *State, inp: *inputs.Inputs) void {
     g.mouse = inp.mouse - inp.screen / v2.fill(2);
 }
 
-fn render(prev: *State, curr: *State, alpha: f32, screen: v2.Value) void {
+fn render(prev: *const State, curr: *const State, alpha: f32, screen: v2.Value) void {
     defer ctx.flush();
 
     ctx.save();
@@ -80,8 +79,94 @@ fn render(prev: *State, curr: *State, alpha: f32, screen: v2.Value) void {
     const mouse = v2.lerp(prev.mouse, curr.mouse, v2.fill(alpha));
     ctx.fillStyle(RGBA.fromHex("#2288cc"));
     ctx.fillRect(mouse, v2.xy(15, 15));
-    // jsLogf32(pos[0]);
-    // jsLogf32(pos[1]);
+}
+
+fn Container(comptime T: type, comptime capacity: comptime_int) type {
+    const TContainer = struct {
+        const Self = @This();
+
+        ids: [capacity]i32,
+        ixs: [capacity]i32,
+        items: [capacity]T,
+        len: i32,
+
+        fn init() Self {
+            var out = Self{
+                .ids = undefined,
+                .ixs = undefined,
+                .items = undefined,
+                .len = 0,
+            };
+
+            for (0..capacity) |x| {
+                out.ids[x] = @intCast(x);
+                out.ixs[x] = @intCast(x);
+            }
+
+            return out;
+        }
+
+        fn new(self: *Self) i32 {
+            if (self.len == capacity) unreachable;
+            self.len += 1;
+            // return self.
+
+            // idxs[id] = index
+
+            // index: 0, 1, 2
+            // ids:   0, 1, 2
+            // items: 0, 0, 0
+            // len: 0
+            //
+            // index: 0, 1, 2
+            // ids:   0, 1, 2
+            // items: 7, 0, 0
+            // len: 1
+            //
+            // index: 0, 1, 2
+            // ids:   0, 1, 2
+            // items: 7, 6, 0
+            // len: 2
+            //
+            // index: 0, 1, 2
+            // ids:   0, 1, 2
+            // items: 7, 6, 9
+            // len: 3
+            //
+            // index: 0, 2, 1
+            // ids:   0, 2, 1
+            // items: 7, 9, 0
+            // len: 2
+            //
+            //
+            // index: 0, 1, 2
+            // ids:   0, 1, 2
+            // items: 0, 0, 0
+            // len: 0
+            //
+            //
+            // index: 0, 1, 2
+            // ids:   0, 1, 2
+            // items: 0, 0, 0
+            // len: 0
+            //
+            //
+            // index: 0, 1, 2
+            // ids:   0, 1, 2
+            // items: 0, 0, 0
+            // len: 0
+            //
+            // index: 0, 1, 2
+            // ids:   0, 1, 2
+            // items: 0, 0, 0
+            // len: 0
+            //
+            //
+
+        }
+    };
+
+    return TContainer;
 }
 
 const State = struct {
@@ -89,18 +174,18 @@ const State = struct {
     mouse: v2.Value,
 };
 
+const States = Container(State, 4);
+
 var prev_seen_tick: i32 = 0;
 
-var prev_state: State = .{
-    .pos = v2.zero,
-    .mouse = v2.zero,
-};
+var prev_state: ?State = null;
+
 var curr_state: State = .{
     .pos = v2.zero,
     .mouse = v2.zero,
 };
 
-export fn frame(timeOffset: i32, screenWidth: i32, screenHeight: i32) void {
+export fn onAnimationFrame(timeOffset: i32, screenWidth: i32, screenHeight: i32) void {
     const screen: v2.Value = .{
         @floatFromInt(screenWidth),
         @floatFromInt(screenHeight),
@@ -115,7 +200,10 @@ export fn frame(timeOffset: i32, screenWidth: i32, screenHeight: i32) void {
 
         prev_state = curr_state;
         tick(&curr_state, &inputs.inputs);
+        // if (itick == 100) {
+        // log("{}", .{inputs.inputs.mouse});
+        // }
     }
 
-    render(&prev_state, &curr_state, alpha, screen);
+    render(&(prev_state orelse curr_state), &curr_state, alpha, screen);
 }

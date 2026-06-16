@@ -14,18 +14,22 @@ export enum Input {
   __length__,
 }
 
-export function inputControl(element: HTMLElement, inputs: Float32Array) {
+export function inputControl(element: HTMLElement, getSlice: () => Float32Array) {
   const stop = new AbortController();
   const signal = stop.signal;
-
-  inputs[Input.screen_width] = element.clientWidth;
-  inputs[Input.screen_height] = element.clientHeight;
-
+  {
+    const inputs = getSlice();
+    inputs[Input.screen_width] = element.clientWidth;
+    inputs[Input.screen_height] = element.clientHeight;
+  }
   const resizeObserver = new ResizeObserver((entries) => {
     for (const entry of entries) {
       const { inlineSize, blockSize } = entry.contentBoxSize[0];
-      inputs[Input.screen_width] = inlineSize;
-      inputs[Input.screen_height] = blockSize;
+      {
+        const inputs = getSlice();
+        inputs[Input.screen_width] = inlineSize;
+        inputs[Input.screen_height] = blockSize;
+      }
     }
   });
 
@@ -36,32 +40,35 @@ export function inputControl(element: HTMLElement, inputs: Float32Array) {
   element.addEventListener(
     "pointermove",
     (e) => {
+      const inputs = getSlice();
       inputs[Input.mouse_x] = e.offsetX;
       inputs[Input.mouse_y] = e.offsetY;
     },
-    { signal, passive: true },
+    { signal, passive: true }
   );
   element.addEventListener(
     "pointerdown",
     (e) => {
+      const inputs = getSlice();
       if (e.button === 0) {
         inputs[Input.mouse_left] = 1;
       } else if (e.button === 1) {
         inputs[Input.mouse_right] = 1;
       }
     },
-    { signal, passive: true },
+    { signal, passive: true }
   );
   element.addEventListener(
     "pointerup",
     (e) => {
+      const inputs = getSlice();
       if (e.button === 0) {
         inputs[Input.mouse_left] = 0;
       } else if (e.button === 1) {
         inputs[Input.mouse_right] = 0;
       }
     },
-    { signal, passive: true },
+    { signal, passive: true }
   );
   window.addEventListener(
     "keydown",
@@ -71,12 +78,13 @@ export function inputControl(element: HTMLElement, inputs: Float32Array) {
       if (!Number.isNaN(parseInt(key))) key = "number_" + key;
       if (key === " ") key = "space";
       if (key in Input) {
+        const inputs = getSlice();
         // @ts-ignore
         const index: number = Input[key];
         inputs[index] = 1;
       }
     },
-    { signal, passive: true },
+    { signal, passive: true }
   );
   window.addEventListener(
     "keyup",
@@ -86,18 +94,16 @@ export function inputControl(element: HTMLElement, inputs: Float32Array) {
       if (!Number.isNaN(parseInt(key))) key = "number_" + key;
       if (key === " ") key = "space";
       if (key in Input) {
+        const inputs = getSlice();
         // @ts-ignore
         const index: number = Input[key];
         inputs[index] = 0;
       }
     },
-    { signal, passive: true },
+    { signal, passive: true }
   );
 
   return {
-    read: () => {
-      return new Float32Array(inputs);
-    },
     stop: () => {
       resizeObserver.disconnect();
       stop.abort();

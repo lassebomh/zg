@@ -37,6 +37,14 @@ function isUnreachable(value: never): never {
   throw new Error("Unreachable");
 }
 
+function rgbaToString(r: number, g: number, b: number, alpha: number): string {
+  if (alpha === 1) {
+    return "rgb(" + r + " " + g + " " + b + ")";
+  } else {
+    return "rgb(" + r + " " + g + " " + b + "/" + alpha + ")";
+  }
+}
+
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
 let width = 0;
@@ -57,32 +65,13 @@ const resizeObserver = new ResizeObserver((entries) => {
 
 const instance = await init({
   env: {
-    jsLogf32(num: number) {
-      console.warn(num);
-    },
-    jsLogu64(num: number) {
-      console.warn(num);
-    },
-    jsLogu32(num: number) {
-      console.warn(num);
-    },
     jsLogStr(ptr: number, length: number) {
-      console.log(ptr, length);
       const buffer = (instance.exports.memory as WebAssembly.Memory).buffer;
       const dec = new TextDecoder();
       const chars = new Uint8Array(buffer, ptr, length);
       console.log(dec.decode(chars));
     },
     jsFlushCommands(commandsTypesPtr: number, commandsArgsPtr: number, commandsLen: number) {
-      // let last = 0;
-      // for (let i = 0; i < 32; i++) {
-      //   let str = "";
-      //   for (let i = 0; i < 32; i++) {
-      //     str += crypto.randomUUID();
-      //   }
-      //   last = last ^ str.split("").reduce((acc, x) => acc + (x.codePointAt(0) ?? 0), 0);
-      //   console.log(last);
-      // }
       const buffer = (instance.exports.memory as WebAssembly.Memory).buffer;
       const commandsTypes = new Uint32Array(buffer, commandsTypesPtr, commandsLen);
       const commandsArgs = new Float32Array(buffer, commandsArgsPtr, commandsLen * 7);
@@ -152,13 +141,13 @@ const instance = await init({
             continue;
 
           case CommandType.fillStyle:
-            ctx.fillStyle = `rgb(${a} ${b} ${c} / ${d})`;
+            ctx.fillStyle = rgbaToString(a, b, c, d);
             continue;
           case CommandType.strokeStyle:
-            ctx.strokeStyle = `rgb(${a} ${b} ${c} / ${d})`;
+            ctx.strokeStyle = rgbaToString(a, b, c, d);
             continue;
           case CommandType.shadowColor:
-            ctx.shadowColor = `rgb(${a} ${b} ${c} / ${d})`;
+            ctx.shadowColor = rgbaToString(a, b, c, d);
             continue;
 
           case CommandType.arc:
@@ -181,7 +170,7 @@ const instance = await init({
   },
 });
 
-const { memory, main, frame, getInputsPtr, ...unused } = instance.exports as any;
+const { memory, main, onAnimationFrame, getInputsPtr, ...unused } = instance.exports as any;
 const unusedNames = Object.keys(unused);
 if (unusedNames.length) throw new Error(`Unused export(s): ${unusedNames.join(", ")}`);
 
@@ -198,7 +187,7 @@ function render() {
   if (width === 0 || height === 0) return;
 
   const t0 = performance.now();
-  frame(t0, width, height);
+  onAnimationFrame(t0, width, height);
   const t1 = performance.now();
   frameTimings[frameCounter++ & (frameTimingsLength - 1)] = t1 - t0;
   animationFrameRequestId = requestAnimationFrame(render);
@@ -215,6 +204,6 @@ setInterval(() => {
 
 resizeObserver.observe(document.body);
 
-const io = inputControl(canvas, new Float32Array(memory.buffer, getInputsPtr(), Input.__length__ * 4));
+const io = inputControl(canvas, () => new Float32Array(memory.buffer, getInputsPtr(), Input.__length__ * 4));
 
 export {};
