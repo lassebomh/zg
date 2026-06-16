@@ -10,7 +10,7 @@ const v2 = utils.v2;
 extern fn jsLogf32(n: f32) void;
 extern fn jsLogu64(n: u64) void;
 extern fn jsLogu32(n: i32) void;
-extern fn jsLogStr(ptr: [*]const u8, len: u32) void;
+extern fn jsLogStr(ptr: [*]u8, len: u32) void;
 
 const Input = struct {
     w: bool,
@@ -26,14 +26,14 @@ const Input = struct {
 
 const wal = std.heap.wasm_allocator;
 
-// pub fn print(comptime fmt: []const u8, args: anytype) void {
-
-// }
+pub fn log(comptime fmt: []const u8, args: anytype) void {
+    const slice = std.fmt.allocPrint(wal, fmt, args) catch unreachable;
+    jsLogStr(slice.ptr, slice.len);
+}
 
 export fn main() void {
     // const alloc = wal.alloc(*const u8, 14) catch unreachable;
-
-    // print("{s}\n", "hello there!");
+    log("{s} {}\n", .{ "hello there!", 123123 });
 }
 
 const TICK_RATE = 1000.0 / 60.0;
