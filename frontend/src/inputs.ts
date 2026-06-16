@@ -16,6 +16,7 @@ export enum Input {
 
 export function inputControl(element: HTMLElement, inputs: Float32Array) {
   const stop = new AbortController();
+  const signal = stop.signal;
 
   inputs[Input.screen_width] = element.clientWidth;
   inputs[Input.screen_height] = element.clientHeight;
@@ -30,15 +31,16 @@ export function inputControl(element: HTMLElement, inputs: Float32Array) {
 
   resizeObserver.observe(element);
 
+  element.addEventListener("contextmenu", (e) => e.preventDefault(), { signal });
+
   element.addEventListener(
     "pointermove",
     (e) => {
       inputs[Input.mouse_x] = e.offsetX;
       inputs[Input.mouse_y] = e.offsetY;
     },
-    { signal: stop.signal, passive: true },
+    { signal, passive: true },
   );
-
   element.addEventListener(
     "pointerdown",
     (e) => {
@@ -48,7 +50,7 @@ export function inputControl(element: HTMLElement, inputs: Float32Array) {
         inputs[Input.mouse_right] = 1;
       }
     },
-    { signal: stop.signal, passive: true },
+    { signal, passive: true },
   );
   element.addEventListener(
     "pointerup",
@@ -59,7 +61,7 @@ export function inputControl(element: HTMLElement, inputs: Float32Array) {
         inputs[Input.mouse_right] = 0;
       }
     },
-    { signal: stop.signal, passive: true },
+    { signal, passive: true },
   );
   window.addEventListener(
     "keydown",
@@ -74,7 +76,7 @@ export function inputControl(element: HTMLElement, inputs: Float32Array) {
         inputs[index] = 1;
       }
     },
-    { signal: stop.signal, passive: true },
+    { signal, passive: true },
   );
   window.addEventListener(
     "keyup",
@@ -89,7 +91,7 @@ export function inputControl(element: HTMLElement, inputs: Float32Array) {
         inputs[index] = 0;
       }
     },
-    { signal: stop.signal, passive: true },
+    { signal, passive: true },
   );
 
   return {

@@ -10,6 +10,7 @@ const v2 = utils.v2;
 extern fn jsLogf32(n: f32) void;
 extern fn jsLogu64(n: u64) void;
 extern fn jsLogu32(n: i32) void;
+extern fn jsLogStr(ptr: [*]const u8, len: u32) void;
 
 const Input = struct {
     w: bool,
@@ -23,7 +24,17 @@ const Input = struct {
     mouse_middle: bool,
 };
 
-export fn main() void {}
+const wal = std.heap.wasm_allocator;
+
+// pub fn print(comptime fmt: []const u8, args: anytype) void {
+
+// }
+
+export fn main() void {
+    // const alloc = wal.alloc(*const u8, 14) catch unreachable;
+
+    // print("{s}\n", "hello there!");
+}
 
 const TICK_RATE = 1000.0 / 60.0;
 
@@ -43,7 +54,7 @@ fn tick(g: *State, inp: *inputs.Inputs) void {
         move[1] += 1;
     }
 
-    move = v2.clamp_length(move) * v2.fill(15);
+    move = v2.clamp_length(move, 1) * v2.fill(15);
 
     g.pos += move;
 

@@ -66,6 +66,13 @@ const instance = await init({
     jsLogu32(num: number) {
       console.warn(num);
     },
+    jsLogStr(ptr: number, length: number) {
+      console.log(ptr, length);
+      const buffer = (instance.exports.memory as WebAssembly.Memory).buffer;
+      const dec = new TextDecoder();
+      const chars = new Uint8Array(buffer, ptr, length);
+      console.log(dec.decode(chars));
+    },
     jsFlushCommands(commandsTypesPtr: number, commandsArgsPtr: number, commandsLen: number) {
       // let last = 0;
       // for (let i = 0; i < 32; i++) {
