@@ -1,6 +1,7 @@
 const std = @import("std");
 const utils = @import("./utils.zig");
 const ctx = @import("./canvas.zig");
+const Container = @import("./container.zig").Container;
 
 const inputs = @import("./inputs.zig");
 
@@ -29,15 +30,31 @@ pub fn log(comptime fmt: []const u8, args: anytype) void {
     wal.free(slice);
 }
 
-export fn main() void {
-    // const alloc = wal.alloc(*const u8, 14) catch unreachable;
-    const states = States.init();
-    log("{}\n", .{states});
-}
+export fn main() void {}
 
 const TICK_RATE = 1000.0 / 60.0;
 
 fn tick(g: *State, inp: *inputs.Inputs) void {
+    if (g.players.len == 0) {
+        const playerEntry = g.players.new();
+        playerEntry.item.* = .{
+            .id = playerEntry.id,
+            .player_id = null,
+            .primary = v2.zero,
+            .secondary = v2.zero,
+        };
+    }
+
+    if (g.avatars.len == 0) {
+        const avatarEntry = g.avatars.new();
+
+        avatarEntry.item.* = .{
+            .id = avatarEntry.id,
+            .pos = v2.zero,
+            .vel = v2.zero,
+        };
+    }
+
     var move = v2.zero;
 
     if (inp.a != 0) {
@@ -53,14 +70,18 @@ fn tick(g: *State, inp: *inputs.Inputs) void {
         move[1] += 1;
     }
 
-    move = v2.clamp_length(move, 1) * v2.fill(15);
+    move = v2.clamp_length(move, 1) * v2.fill(10);
 
-    g.pos += move;
+    for (0..g.avatars.len) |x| {
+        var avatar = &g.avatars.items[x];
 
-    g.mouse = inp.mouse - inp.screen / v2.fill(2);
+        avatar.vel += move;
+        avatar.pos += avatar.vel;
+        avatar.vel /= v2.fill(1.3);
+    }
 }
 
-fn render(prev: *const State, curr: *const State, alpha: f32, screen: v2.Value) void {
+fn render(prev: *State, curr: *State, alpha: f32, screen: v2.Value) void {
     defer ctx.flush();
 
     ctx.save();
@@ -72,117 +93,41 @@ fn render(prev: *const State, curr: *const State, alpha: f32, screen: v2.Value) 
 
     ctx.translate(screen / v2.fill(2));
 
-    const pos = v2.lerp(prev.pos, curr.pos, v2.fill(alpha));
-    ctx.fillStyle(RGBA.fromHex("#ff0000"));
-    ctx.fillRect(pos, v2.xy(30, 30));
-
-    const mouse = v2.lerp(prev.mouse, curr.mouse, v2.fill(alpha));
-    ctx.fillStyle(RGBA.fromHex("#2288cc"));
-    ctx.fillRect(mouse, v2.xy(15, 15));
+    for (curr.avatars.items[0..curr.avatars.len]) |avatar| {
+        const prevAvatar = prev.avatars.get(avatar.id) orelse continue;
+        const pos = v2.lerp(prevAvatar.pos, avatar.pos, v2.fill(alpha));
+        ctx.fillStyle(RGBA.fromHex("#ff0000"));
+        ctx.fillRect(pos, v2.xy(10, 10));
+    }
 }
 
-fn Container(comptime T: type, comptime capacity: comptime_int) type {
-    const TContainer = struct {
-        const Self = @This();
+const Avatar = struct {
+    id: usize,
+    pos: v2.Value,
+    vel: v2.Value,
+};
+const AvatarContainer = Container(Avatar, 16);
 
-        ids: [capacity]i32,
-        ixs: [capacity]i32,
-        items: [capacity]T,
-        len: i32,
+const Player = struct {
+    id: usize,
+    player_id: ?usize,
 
-        fn init() Self {
-            var out = Self{
-                .ids = undefined,
-                .ixs = undefined,
-                .items = undefined,
-                .len = 0,
-            };
-
-            for (0..capacity) |x| {
-                out.ids[x] = @intCast(x);
-                out.ixs[x] = @intCast(x);
-            }
-
-            return out;
-        }
-
-        fn new(self: *Self) i32 {
-            if (self.len == capacity) unreachable;
-            self.len += 1;
-            // return self.
-
-            // idxs[id] = index
-
-            // index: 0, 1, 2
-            // ids:   0, 1, 2
-            // items: 0, 0, 0
-            // len: 0
-            //
-            // index: 0, 1, 2
-            // ids:   0, 1, 2
-            // items: 7, 0, 0
-            // len: 1
-            //
-            // index: 0, 1, 2
-            // ids:   0, 1, 2
-            // items: 7, 6, 0
-            // len: 2
-            //
-            // index: 0, 1, 2
-            // ids:   0, 1, 2
-            // items: 7, 6, 9
-            // len: 3
-            //
-            // index: 0, 2, 1
-            // ids:   0, 2, 1
-            // items: 7, 9, 0
-            // len: 2
-            //
-            //
-            // index: 0, 1, 2
-            // ids:   0, 1, 2
-            // items: 0, 0, 0
-            // len: 0
-            //
-            //
-            // index: 0, 1, 2
-            // ids:   0, 1, 2
-            // items: 0, 0, 0
-            // len: 0
-            //
-            //
-            // index: 0, 1, 2
-            // ids:   0, 1, 2
-            // items: 0, 0, 0
-            // len: 0
-            //
-            // index: 0, 1, 2
-            // ids:   0, 1, 2
-            // items: 0, 0, 0
-            // len: 0
-            //
-            //
-
-        }
-    };
-
-    return TContainer;
-}
+    primary: v2.Value,
+    secondary: v2.Value,
+};
+const PlayerContainer = Container(Player, 16);
 
 const State = struct {
-    pos: v2.Value,
-    mouse: v2.Value,
+    avatars: AvatarContainer,
+    players: PlayerContainer,
 };
 
-const States = Container(State, 4);
-
 var prev_seen_tick: i32 = 0;
-
 var prev_state: ?State = null;
 
 var curr_state: State = .{
-    .pos = v2.zero,
-    .mouse = v2.zero,
+    .avatars = AvatarContainer.init(),
+    .players = PlayerContainer.init(),
 };
 
 export fn onAnimationFrame(timeOffset: i32, screenWidth: i32, screenHeight: i32) void {
