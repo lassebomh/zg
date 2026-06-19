@@ -1,4 +1,4 @@
-import { Input, inputControl } from "./inputs";
+import { inputControl } from "./inputs";
 import init from "./wasm/main.wasm?init";
 
 enum CommandType {
@@ -204,6 +204,6 @@ setInterval(() => {
 
 resizeObserver.observe(document.body);
 
-const io = inputControl(canvas, () => new Float32Array(memory.buffer, getInputsPtr(), Input.__length__ * 4));
+const io = inputControl(canvas, () => new DataView(memory.buffer, getInputsPtr()));
 
 export {};

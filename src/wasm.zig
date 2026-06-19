@@ -3,123 +3,131 @@ const utils = @import("./utils.zig");
 const ctx = @import("./canvas.zig");
 const Container = @import("./container.zig").Container;
 
-const inputs = @import("./inputs.zig");
+const inp = @import("./inputs.zig");
 
 const RGBA = utils.RGBA;
 const v2 = utils.v2;
 
+const TICK_RATE = 1000.0 / 60.0;
+
 extern fn jsLogStr(ptr: [*]u8, len: u32) void;
-
-const Input = struct {
-    w: bool,
-    a: bool,
-    s: bool,
-    d: bool,
-    screen: v2.Value,
-    mouse: v2.Value,
-    mouse_left: bool,
-    mouse_right: bool,
-    mouse_middle: bool,
-};
-
-const wal = std.heap.wasm_allocator;
-
 pub fn log(comptime fmt: []const u8, args: anytype) void {
-    const slice = std.fmt.allocPrint(wal, fmt, args) catch unreachable;
+    const slice = std.fmt.allocPrint(std.heap.wasm_allocator, fmt, args) catch unreachable;
     jsLogStr(slice.ptr, slice.len);
-    wal.free(slice);
+    std.heap.wasm_allocator.free(slice);
+}
+pub fn fail(comptime fmt: []const u8, args: anytype) noreturn {
+    log(fmt, args);
+    unreachable;
 }
 
 export fn main() void {}
 
-const TICK_RATE = 1000.0 / 60.0;
-
-fn tick(g: *State, inp: *inputs.Inputs) void {
-    if (g.players.len == 0) {
-        const playerEntry = g.players.new();
-        playerEntry.item.* = .{
-            .id = playerEntry.id,
-            .player_id = null,
-            .primary = v2.zero,
-            .secondary = v2.zero,
-        };
-    }
-
-    if (g.avatars.len == 0) {
-        const avatarEntry = g.avatars.new();
-
-        avatarEntry.item.* = .{
-            .id = avatarEntry.id,
-            .pos = v2.zero,
-            .vel = v2.zero,
-        };
-    }
-
-    var move = v2.zero;
-
-    if (inp.a != 0) {
-        move[0] -= 1;
-    }
-    if (inp.d != 0) {
-        move[0] += 1;
-    }
-    if (inp.w != 0) {
-        move[1] -= 1;
-    }
-    if (inp.s != 0) {
-        move[1] += 1;
-    }
-
-    move = v2.clamp_length(move, 1) * v2.fill(10);
-
-    for (0..g.avatars.len) |x| {
-        var avatar = &g.avatars.items[x];
-
-        avatar.vel += move;
-        avatar.pos += avatar.vel;
-        avatar.vel /= v2.fill(1.3);
-    }
-}
-
-fn render(prev: *State, curr: *State, alpha: f32, screen: v2.Value) void {
-    defer ctx.flush();
-
-    ctx.save();
-    defer ctx.restore();
-    ctx.clearRect(v2.zero, screen);
-
-    ctx.fillStyle(RGBA.fromHex("#000000"));
-    ctx.fillRect(v2.zero, screen);
-
-    ctx.translate(screen / v2.fill(2));
-
-    for (curr.avatars.items[0..curr.avatars.len]) |avatar| {
-        const prevAvatar = prev.avatars.get(avatar.id) orelse continue;
-        const pos = v2.lerp(prevAvatar.pos, avatar.pos, v2.fill(alpha));
-        ctx.fillStyle(RGBA.fromHex("#ff0000"));
-        ctx.fillRect(pos, v2.xy(10, 10));
-    }
-}
-
 const Avatar = struct {
     id: usize,
+    inputs: struct {
+        lstick: v2.Value,
+        rstick: v2.Value,
+    },
     pos: v2.Value,
     vel: v2.Value,
+
+    fn update(this: *Avatar, _: *State) void {
+        this.vel += this.inputs.lstick * v2.fill(10);
+        this.pos += this.vel;
+        this.vel /= v2.fill(1.3);
+    }
 };
-const AvatarContainer = Container(Avatar, 16);
+const AvatarContainer = Container(Avatar, inp.MaxPeers); // should multiply if controllers are supported
 
 const Player = struct {
     id: usize,
-    player_id: ?usize,
+    peer_id: i32,
+    avatar_id: ?usize,
+    inputs: inp.Inputs,
 
-    primary: v2.Value,
-    secondary: v2.Value,
+    fn upsert_avatar(this: *Player, g: *State) *Avatar {
+        const avatar_id = this.avatar_id orelse init: {
+            var avatarEntry = g.avatars.new();
+            avatarEntry.item.id = avatarEntry.id;
+            this.avatar_id = avatarEntry.id;
+            break :init avatarEntry.id;
+        };
+
+        return g.avatars.get(avatar_id).?;
+    }
+
+    fn update(this: *Player, g: *State) void {
+        var avatar = this.upsert_avatar(g);
+
+        var lstick = v2.zero;
+        if (this.inputs.a) lstick[0] -= 1;
+        if (this.inputs.d) lstick[0] += 1;
+        if (this.inputs.w) lstick[1] -= 1;
+        if (this.inputs.s) lstick[1] += 1;
+        avatar.inputs.lstick = v2.clamp_length(lstick, 1);
+
+        var rstick = v2.zero;
+
+        if (this.inputs.a) rstick[0] -= 1;
+        if (this.inputs.d) rstick[0] += 1;
+        if (this.inputs.w) rstick[1] -= 1;
+        if (this.inputs.s) rstick[1] += 1;
+        avatar.inputs.rstick = v2.clamp_length(rstick, 1);
+    }
 };
-const PlayerContainer = Container(Player, 16);
+const PlayerContainer = Container(Player, inp.MaxPeers);
 
 const State = struct {
     avatars: AvatarContainer,
     players: PlayerContainer,
+
+    fn update(this: *State, peersInputs: []inp.Inputs) void {
+        for (peersInputs) |inputs| {
+            if (inputs.peer_id == 0) continue;
+
+            var player: *Player = find_player: {
+                for (this.players.items[0..this.players.len]) |*p| {
+                    if (p.peer_id == inputs.peer_id) {
+                        break :find_player p;
+                    }
+                }
+
+                var newPlayer = this.players.new();
+
+                newPlayer.item.id = newPlayer.id;
+                newPlayer.item.peer_id = inputs.peer_id;
+
+                break :find_player newPlayer.item;
+            };
+            player.inputs = inputs;
+            player.update(this);
+        }
+
+        for (this.avatars.items[0..this.avatars.len]) |*avatar| {
+            avatar.update(this);
+        }
+    }
+
+    fn render(this: *State, prev: *State, alpha: f32, screen: v2.Value) void {
+        defer ctx.flush();
+
+        ctx.save();
+        defer ctx.restore();
+        ctx.clearRect(v2.zero, screen);
+
+        ctx.fillStyle(RGBA.fromHex("#000000"));
+        ctx.fillRect(v2.zero, screen);
+
+        ctx.translate(screen / v2.fill(2));
+
+        for (this.avatars.items[0..this.avatars.len]) |avatar| {
+            const prevAvatar = prev.avatars.get(avatar.id) orelse continue;
+            const pos = v2.lerp(prevAvatar.pos, avatar.pos, v2.fill(alpha));
+            ctx.fillStyle(RGBA.fromHex("#ff0000"));
+            ctx.fillRect(pos, v2.xy(10, 10));
+        }
+    }
 };
 
 var prev_seen_tick: i32 = 0;
@@ -144,11 +152,11 @@ export fn onAnimationFrame(timeOffset: i32, screenWidth: i32, screenHeight: i32)
         prev_seen_tick = itick;
 
         prev_state = curr_state;
-        tick(&curr_state, &inputs.inputs);
+        curr_state.update(&inp.peersInputs);
         // if (itick == 100) {
         // log("{}", .{inputs.inputs.mouse});
         // }
     }
 
-    render(&(prev_state orelse curr_state), &curr_state, alpha, screen);
+    curr_state.render(&(prev_state orelse curr_state), alpha, screen);
 }
