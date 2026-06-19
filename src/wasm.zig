@@ -21,7 +21,41 @@ pub fn fail(comptime fmt: []const u8, args: anytype) noreturn {
     unreachable;
 }
 
-export fn main() void {}
+fn update_boxes(boxes: *BoxContainer) void {
+    for (boxes.items[0..boxes.len]) |*box| {
+        box.pos += box.vel;
+    }
+}
+
+const Box = struct {
+    pos: v2.Value,
+    size: v2.Value,
+    vel: v2.Value,
+    static: bool,
+
+    fn topleft(this: *Box) v2.Value {
+        return this.pos - this.size / v2.fill(2);
+    }
+
+    fn render(this: *Box, prev: *Box, alpha: f32) void {
+        const pos = v2.lerp(prev.topleft(), this.topleft(), v2.fill(alpha));
+        // const vel = v2.lerp(prev.vel, this.vel, alpha);
+        const size = v2.lerp(prev.size, this.size, v2.fill(alpha));
+
+        ctx.save();
+        defer ctx.restore();
+
+        ctx.lineWidth(1);
+        if (this.static) {
+            ctx.strokeStyle(RGBA.fromHex("#0000ff"));
+        } else {
+            ctx.strokeStyle(RGBA.fromHex("#ff0000"));
+        }
+        ctx.strokeRect(pos, size);
+    }
+};
+
+const BoxContainer = Container(Box, 32);
 
 const Avatar = struct {
     id: usize,
@@ -29,13 +63,16 @@ const Avatar = struct {
         lstick: v2.Value,
         rstick: v2.Value,
     },
-    pos: v2.Value,
-    vel: v2.Value,
 
-    fn update(this: *Avatar, _: *State) void {
-        this.vel += this.inputs.lstick * v2.fill(10);
-        this.pos += this.vel;
-        this.vel /= v2.fill(1.3);
+    torso_id: usize,
+    fn get_torso(this: *Avatar, g: *State) *Box {
+        return g.boxes.get(this.torso_id).?;
+    }
+
+    fn update(this: *Avatar, g: *State) void {
+        var torso = this.get_torso(g);
+        torso.vel += this.inputs.lstick * v2.fill(0.5);
+        torso.vel /= v2.fill(1.3);
     }
 };
 const AvatarContainer = Container(Avatar, inp.MaxPeers); // should multiply if controllers are supported
@@ -50,6 +87,17 @@ const Player = struct {
         const avatar_id = this.avatar_id orelse init: {
             var avatarEntry = g.avatars.new();
             avatarEntry.item.id = avatarEntry.id;
+
+            const torsoEntry = g.boxes.new();
+            avatarEntry.item.torso_id = torsoEntry.id;
+            torsoEntry.item.pos = v2.zero;
+            torsoEntry.item.size = v2.fill(10);
+
+            // avatarEntry.item.*.torso = Box{
+            //     .pos = v2.zero,
+            //     .size = v2.fill(1),
+            //     .vel = v2.zero,
+            // };
             this.avatar_id = avatarEntry.id;
             break :init avatarEntry.id;
         };
@@ -81,6 +129,7 @@ const PlayerContainer = Container(Player, inp.MaxPeers);
 const State = struct {
     avatars: AvatarContainer,
     players: PlayerContainer,
+    boxes: BoxContainer,
 
     fn update(this: *State, peersInputs: []inp.Inputs) void {
         for (peersInputs) |inputs| {
@@ -107,6 +156,7 @@ const State = struct {
         for (this.avatars.items[0..this.avatars.len]) |*avatar| {
             avatar.update(this);
         }
+        update_boxes(&this.boxes);
     }
 
     fn render(this: *State, prev: *State, alpha: f32, screen: v2.Value) void {
@@ -114,29 +164,44 @@ const State = struct {
 
         ctx.save();
         defer ctx.restore();
+
         ctx.clearRect(v2.zero, screen);
 
         ctx.fillStyle(RGBA.fromHex("#000000"));
         ctx.fillRect(v2.zero, screen);
 
         ctx.translate(screen / v2.fill(2));
+        ctx.scale(v2.fill(5));
 
-        for (this.avatars.items[0..this.avatars.len]) |avatar| {
-            const prevAvatar = prev.avatars.get(avatar.id) orelse continue;
-            const pos = v2.lerp(prevAvatar.pos, avatar.pos, v2.fill(alpha));
-            ctx.fillStyle(RGBA.fromHex("#ff0000"));
-            ctx.fillRect(pos, v2.xy(10, 10));
+        for (0..this.boxes.len) |box_i| {
+            const box = &this.boxes.items[box_i];
+            const box_id = this.boxes.ids[box_i];
+
+            const prevbox = prev.boxes.get(box_id) orelse continue;
+            box.render(prevbox, alpha);
         }
+    }
+
+    fn init() State {
+        var state: State = .{
+            .avatars = AvatarContainer.init(),
+            .players = PlayerContainer.init(),
+            .boxes = BoxContainer.init(),
+        };
+
+        const ground = state.boxes.new();
+        ground.item.size = v2.xy(100, 20);
+        ground.item.pos = v2.xy(0, 20);
+        ground.item.static = true;
+
+        return state;
     }
 };
 
 var prev_seen_tick: i32 = 0;
 var prev_state: ?State = null;
 
-var curr_state: State = .{
-    .avatars = AvatarContainer.init(),
-    .players = PlayerContainer.init(),
-};
+var curr_state: State = State.init();
 
 export fn onAnimationFrame(timeOffset: i32, screenWidth: i32, screenHeight: i32) void {
     const screen: v2.Value = .{
@@ -159,4 +224,8 @@ export fn onAnimationFrame(timeOffset: i32, screenWidth: i32, screenHeight: i32)
     }
 
     curr_state.render(&(prev_state orelse curr_state), alpha, screen);
+}
+
+export fn main() void {
+    log("{}", .{@sizeOf(State)});
 }
