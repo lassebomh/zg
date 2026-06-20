@@ -177,13 +177,13 @@ pub const Level = struct {
             .blocks = lib.Container(Box, 16).init(),
         };
 
-        level.blocks.addOne().item.* = Box.init(v2.xy(0, -40), v2.xy(300, 10));
+        level.blocks.get(level.blocks.addOne()).?.* = Box.init(v2.xy(0, -40), v2.xy(300, 10));
 
-        level.blocks.addOne().item.* = Box.init(v2.xy(-30, -20), v2.xy(40, 10));
+        level.blocks.get(level.blocks.addOne()).?.* = Box.init(v2.xy(-30, -20), v2.xy(40, 10));
 
-        level.blocks.addOne().item.* = Box.init(v2.xy(0, 20), v2.xy(100, 10));
-        level.blocks.addOne().item.* = Box.init(v2.xy(0, 30), v2.xy(200, 10));
-        level.blocks.addOne().item.* = Box.init(v2.xy(0, 40), v2.xy(300, 10));
+        level.blocks.get(level.blocks.addOne()).?.* = Box.init(v2.xy(0, 20), v2.xy(100, 10));
+        level.blocks.get(level.blocks.addOne()).?.* = Box.init(v2.xy(0, 30), v2.xy(200, 10));
+        level.blocks.get(level.blocks.addOne()).?.* = Box.init(v2.xy(0, 40), v2.xy(300, 10));
 
         return level;
     }

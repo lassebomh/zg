@@ -22,12 +22,14 @@ pub const State = struct {
                     }
                 }
 
-                var newPlayer = this.players.addOne();
+                const newPlayerId = this.players.addOne();
+                var newPlayer = this.players.get(newPlayerId).?;
+                newPlayer.id = newPlayerId;
 
-                newPlayer.item.id = newPlayer.id;
-                newPlayer.item.peer_id = inputs.peer_id;
+                newPlayer.id = newPlayer.id;
+                newPlayer.peer_id = inputs.peer_id;
 
-                break :find_player newPlayer.item;
+                break :find_player newPlayer;
             };
             player.inputs = inputs;
             player.update(this);
@@ -55,8 +57,8 @@ pub const State = struct {
 
         for (this.players.items) |player| {
             if (player.peer_id == peer_id) {
-                const avatar = this.avatars.getId(player.avatar_id orelse break).?;
-                const prevAvatar = prev.avatars.getId(avatar.id) orelse avatar;
+                const avatar = this.avatars.get(player.avatar_id orelse break).?;
+                const prevAvatar = prev.avatars.get(avatar.id) orelse avatar;
                 const pos = v2.lerp(prevAvatar.box.position, avatar.box.position, v2.fill(alpha));
                 js.ctx.translate(-pos);
                 break;
@@ -69,7 +71,7 @@ pub const State = struct {
             const avatar = &this.avatars.items[avatar_i];
             const avatar_id = this.avatars.ids[avatar_i];
 
-            const prev_avatar = prev.avatars.getId(avatar_id) orelse continue;
+            const prev_avatar = prev.avatars.get(avatar_id) orelse continue;
             avatar.render(prev_avatar, alpha);
         }
     }

@@ -128,21 +128,20 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
             return out;
         }
 
-        pub fn addOne(self: *Self) struct { id: usize, item: *T } {
+        pub fn addOne(self: *Self) usize {
             if (self.len == capacity) {
                 unreachable;
             }
             const index = self.len;
             self.len += 1;
-            const id = self.ids[index];
-            return .{ .id = id, .item = &self.items[id] };
+            return self.ids[index];
         }
 
         // pub fn get(self: *Self, id: ?usize) ?*T {
         //     if (id == null) return null;
         //     const index = self.ixs[id.?];
 
-        pub fn getId(self: *Self, id: usize) ?*T {
+        pub fn get(self: *Self, id: usize) ?*T {
             const index = self.ixs[id];
             if (index >= self.len) {
                 return null;

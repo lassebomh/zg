@@ -43,22 +43,15 @@ pub const Player = struct {
 
     pub fn upsert_avatar(this: *Player, g: *game.State) *Avatar {
         const avatar_id = this.avatar_id orelse init: {
-            var avatarEntry = g.avatars.addOne();
-            avatarEntry.item.id = avatarEntry.id;
-
-            avatarEntry.item.box.position = v2.xy(0, 0);
-            avatarEntry.item.box.size = v2.xy(10, 20);
-
-            // avatarEntry.item.*.torso = Box{
-            //     .pos = v2.zero,
-            //     .size = v2.fill(1),
-            //     .vel = v2.zero,
-            // };
-            this.avatar_id = avatarEntry.id;
-            break :init avatarEntry.id;
+            const avatarId = g.avatars.addOne();
+            const avatar = g.avatars.get(avatarId).?;
+            avatar.id = avatarId;
+            avatar.box.position = v2.xy(0, 0);
+            avatar.box.size = v2.xy(10, 15);
+            break :init avatar.id;
         };
 
-        return g.avatars.getId(avatar_id).?;
+        return g.avatars.get(avatar_id).?;
     }
 
     pub fn update(this: *Player, g: *game.State) void {
