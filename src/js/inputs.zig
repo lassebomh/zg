@@ -8,8 +8,10 @@ pub const Inputs = extern struct {
     d: bool,
     space: bool,
     shift: bool,
-    mouse: @Vector(2, f32),
+    mouse_x: f32,
+    mouse_y: f32,
     mouse_left: bool,
     mouse_right: bool,
-    screen: @Vector(2, f32),
+    screen_width: f32,
+    screen_height: f32,
 };

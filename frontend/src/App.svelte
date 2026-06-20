@@ -106,6 +106,7 @@
         const ftick = Math.max(0, (save.viewStart + save.viewEnd) / 2);
         const tick = Math.floor(ftick);
         const alpha = ftick - tick;
+        // jsRenderTick(ftick, 0, gameWidth, gameHeight, save.selectedTrack);
         jsRenderTick(ftick, alpha, gameWidth, gameHeight, save.selectedTrack);
       };
 
@@ -120,7 +121,7 @@
         );
         memoryBuffer.set(inputBuffer);
 
-        jsPullInputs(tick);
+        jsPullInputs(tick + 1);
       };
 
       const inputController = inputControl(gameCanvas);
@@ -330,7 +331,7 @@
   <div class="controls-settings">
     <div class="label">speed</div>
     <select bind:value={save.playSpeed} class="dropdown-menu-inner">
-      {#each { length: 5 } as _, i}
+      {#each { length: 7 } as _, i}
         {@const value = Math.pow(2, i)}
         <option value={1 / value}>1/{value}</option>
       {/each}
@@ -355,14 +356,18 @@
         temp.recording = false;
         clearInterval(flushInputBufferInterval);
       });
-      e.currentTarget.addEventListener("click", abort, { signal });
-      window.addEventListener(
-        "keydown",
+      const button = e.currentTarget;
+      button.addEventListener(
+        "click",
         (e) => {
-          if (e.key === "Escape") abort();
+          e.stopPropagation();
+          abort();
+          button.blur();
+          gameCanvas.focus();
         },
-        { signal },
+        { signal, capture: true },
       );
+      window.addEventListener("keydown", (e) => e.key === "Escape" && abort(), { signal, capture: true });
     }}>⏺ REC</button
   >
 </div>
@@ -549,6 +554,7 @@
   }
 
   .controls {
+    user-select: none;
     position: absolute;
     bottom: calc(96px + 0.75rem);
     left: 50%;
@@ -627,7 +633,6 @@
     width: auto !important;
     padding: 0 0.5rem !important;
     gap: 0.3rem;
-
     &:hover {
       background-color: #c443 !important;
     }

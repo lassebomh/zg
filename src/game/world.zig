@@ -116,23 +116,17 @@ pub const Box = struct {
             const ldist = (this.x_left() + this.vel[0]) - (block.x_right() + block.vel[0]);
 
             if (bdist < 0 and ldist < 0 and rdist < 0 and tdist < 0) {
-                // js.debug.log("t:{d:6.2} b:{d:6.2} l:{d:6.2} r:{d:6.2}", .{ tdist, bdist, ldist, rdist });
-
-                if (@min(ldist, rdist) > @min(bdist, tdist)) {
+                if (@max(ldist, rdist) > @max(bdist, tdist)) {
                     const dx = if (rdist > ldist) rdist else -ldist;
-                    this.position[0] += dx;
                     this.vel[0] += dx;
                     this.impact[0] += dx;
                 } else {
                     const dy = if (bdist > tdist) bdist else -tdist;
-                    this.position[1] += dy;
                     this.vel[1] += dy;
                     this.impact[1] += dy;
                 }
             }
         }
-
-        // this.vel += this.impact;
 
         this.position += this.vel;
     }
@@ -150,13 +144,13 @@ pub const Box = struct {
         js.ctx.strokeStyle(RGBA.fromHex("#ff00ff"));
         js.ctx.beginPath();
         js.ctx.moveTo(box.cc());
-        js.ctx.lineTo(box.cc() + box.impact * v2.fill(5));
+        js.ctx.lineTo(box.cc() + box.impact * v2.fill(1));
         js.ctx.stroke();
 
         js.ctx.strokeStyle(RGBA.fromHex("#0077ff"));
         js.ctx.beginPath();
         js.ctx.moveTo(box.cc());
-        js.ctx.lineTo(box.cc() + box.vel * v2.fill(5));
+        js.ctx.lineTo(box.cc() + box.vel * v2.fill(1));
         js.ctx.stroke();
     }
 };
@@ -183,7 +177,7 @@ pub const Level = struct {
             .blocks = lib.Container(Box, 16).init(),
         };
 
-        level.blocks.new().item.* = Box.init(v2.xy(0, -10), v2.xy(300, 10));
+        level.blocks.new().item.* = Box.init(v2.xy(0, -40), v2.xy(300, 10));
 
         level.blocks.new().item.* = Box.init(v2.xy(0, 20), v2.xy(100, 10));
         level.blocks.new().item.* = Box.init(v2.xy(0, 30), v2.xy(200, 10));

@@ -8,8 +8,6 @@ const game = @import("./game/root.zig");
 const wal = std.heap.wasm_allocator;
 const ArrayList = std.ArrayList;
 
-// MARK: TODO REMOVE vec shorthand in inputs
-
 var states: ArrayList(game.State) = .empty;
 
 var peersInputs: [4]ArrayList(js.inputs.Inputs) = .{
@@ -26,7 +24,6 @@ export fn getInputsPtr() *js.inputs.Inputs {
 }
 
 fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
-    // js.debug.log("{} {} {} {}", .{ tick, alpha, screen, peer_id });
     const utick: usize = @intCast(tick);
 
     // ensure it can hold tick and tick+1
@@ -72,7 +69,6 @@ fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
 }
 
 export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height: i32, peer_id: i32) void {
-    // js.debug.log("render: {} {} {} {} {}", .{ itick, alpha, screen_width, screen_height, peer_id });
     const screen: v2.Value = .{
         @floatFromInt(screen_width),
         @floatFromInt(screen_height),
@@ -84,8 +80,6 @@ export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height:
 }
 
 export fn jsPullInputs(itick: i32) void {
-    // js.debug.log("pull inputs: {}", .{itick});
-
     pullInputs(itick) catch |e| {
         js.debug.fail("{any}", .{e});
     };
@@ -93,25 +87,17 @@ export fn jsPullInputs(itick: i32) void {
 
 fn pullInputs(itick: i32) !void {
     const tick: usize = @intCast(itick);
-    // js.debug.log("tick {}", .{tick});
     const peer_id = jsPeersInput.peer_id;
-    // js.debug.log("peer_id {}", .{peer_id});
-    const peer_index: usize = @intCast(peer_id);
-    // js.debug.log("peer_index {}", .{peer_index});
-    var peerInputArray = peersInputs[peer_index];
-    // js.debug.log("peerInputArray {}", .{peerInputArray});
+    const peer_index: usize = @intCast(peer_id - 1);
+    var peerInputArray = &peersInputs[peer_index];
 
     try peerInputArray.ensureTotalCapacity(wal, tick + 1);
-    // js.debug.log("peerInputArray {}", .{peerInputArray});
-
-    // js.debug.log("pop count = {}", .{tick - (states.items.len - 1)});
 
     // pop all states that depends on the inputs were modifying
     while (states.items.len - 1 > tick) {
         _ = states.pop() orelse js.debug.fail("impossible", .{});
     }
 
-    // js.debug.log("pop inputs count = {}", .{tick - (peerInputArray.items.len)});
     // pop all input entries after and on this tick
     while (peerInputArray.items.len > tick) {
         _ = peerInputArray.pop() orelse js.debug.fail("impossible", .{});
@@ -119,19 +105,14 @@ fn pullInputs(itick: i32) !void {
 
     // fill holes by duplicating the last inputs before this tick
     if (peerInputArray.items.len > 0 and peerInputArray.items.len < tick) {
-        // js.debug.log("get last", .{});
         const last = peerInputArray.getLast();
 
-        // js.debug.log("clone = {}", .{tick - peerInputArray.items.len});
         while (peerInputArray.items.len < tick) {
             const head = try peerInputArray.addOne(wal);
             head.* = last;
         }
     }
 
-    // js.debug.log("1: add one = {}", .{peerInputArray});
     const head = try peerInputArray.addOne(wal);
-    // js.debug.log("2: add one = {}", .{peerInputArray});
     head.* = jsPeersInput;
-    js.debug.log("input({}) = {}", .{ tick, head.* });
 }
