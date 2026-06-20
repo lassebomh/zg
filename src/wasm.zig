@@ -19,7 +19,7 @@ var peersInputs: [4]ArrayList(js.inputs.Inputs) = .{
 
 var jsPeersInput: js.inputs.Inputs = std.mem.zeroes(js.inputs.Inputs);
 
-export fn getInputsPtr() *js.inputs.Inputs {
+export fn jsGetInputsPtr() *js.inputs.Inputs {
     return &jsPeersInput;
 }
 
@@ -40,14 +40,11 @@ fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
         const new_tick = states.items.len;
 
         var prev_state_copy = states.items[new_tick - 1];
-
         var new_state = &prev_state_copy;
-
         var input_frame: [4]js.inputs.Inputs = undefined;
 
         for (peersInputs, 0..4, 1..5) |peer_inputs, i, inputs_peer_id| {
             var inputs = &input_frame[i];
-
             if (peer_inputs.items.len == 0) {
                 inputs.peer_id = @intCast(inputs_peer_id);
             } else {

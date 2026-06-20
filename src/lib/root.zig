@@ -128,7 +128,7 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
             return out;
         }
 
-        pub fn new(self: *Self) struct { id: usize, item: *T } {
+        pub fn addOne(self: *Self) struct { id: usize, item: *T } {
             if (self.len == capacity) {
                 unreachable;
             }
@@ -142,7 +142,7 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
         //     if (id == null) return null;
         //     const index = self.ixs[id.?];
 
-        pub fn get(self: *Self, id: usize) ?*T {
+        pub fn getId(self: *Self, id: usize) ?*T {
             const index = self.ixs[id];
             if (index >= self.len) {
                 return null;
@@ -150,7 +150,7 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
             return &self.items[index];
         }
 
-        pub fn delete(self: *Self, id: usize) void {
+        pub fn deleteId(self: *Self, id: usize) void {
             const index = self.ixs[id];
             if (index >= self.len) {
                 unreachable;

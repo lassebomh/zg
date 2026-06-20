@@ -98,7 +98,7 @@
         },
       });
 
-      const { memory, jsRenderTick, jsPullInputs, getInputsPtr, ...unused } = instance.exports as any;
+      const { memory, jsRenderTick, jsPullInputs, jsGetInputsPtr, ...unused } = instance.exports as any;
       const unusedNames = Object.keys(unused);
       if (unusedNames.length) throw new Error(`Unused export(s): ${unusedNames.join(", ")}`);
 
@@ -106,7 +106,6 @@
         const ftick = Math.max(0, (save.viewStart + save.viewEnd) / 2);
         const tick = Math.floor(ftick);
         const alpha = ftick - tick;
-        // jsRenderTick(ftick, 0, gameWidth, gameHeight, save.selectedTrack);
         jsRenderTick(ftick, alpha, gameWidth, gameHeight, save.selectedTrack);
       };
 
@@ -116,12 +115,12 @@
         const inputBuffer = new Uint8Array(inputController.read(save.selectedTrack));
         const memoryBuffer = new Uint8Array(
           (instance.exports.memory as WebAssembly.Memory).buffer,
-          getInputsPtr(),
+          jsGetInputsPtr(),
           inputBuffer.byteLength,
         );
         memoryBuffer.set(inputBuffer);
 
-        jsPullInputs(tick + 1);
+        jsPullInputs(tick);
       };
 
       const inputController = inputControl(gameCanvas);
@@ -405,36 +404,33 @@
       // Pan with mouse drag
       onmousedown={(e) => {
         if (e.button === 0) {
-          // Middle click or shift+left click to pan
+          e.preventDefault();
+
+          temp.tracksCanvasPanning = true;
+          const { abort, signal } = abortSignal(() => (temp.tracksCanvasPanning = false));
+
           const drag = {
             x: e.clientX,
             prevX: e.clientX,
             viewStart: save.viewStart,
             viewEnd: save.viewEnd,
+            width: e.currentTarget.width,
           };
-          const width = e.currentTarget.width;
-          e.preventDefault();
-          temp.tracksCanvasPanning = true;
-          const abort = new AbortController();
+
           window.addEventListener(
             "mousemove",
             (e) => {
-              if (drag) {
-                const dx = e.clientX - drag.x;
-                const tickDelta = (dx / width) * (drag.viewEnd - drag.viewStart);
-                save.viewStart = drag.viewStart - tickDelta;
-                save.viewEnd = drag.viewEnd - tickDelta;
-                save.viewChange = -((e.clientX - drag.prevX) / width) * (drag.viewEnd - drag.viewStart);
-                drag.prevX = e.clientX;
-              }
+              const dx = e.clientX - drag.x;
+              const tickDelta = (dx / drag.width) * (drag.viewEnd - drag.viewStart);
+              save.viewStart = drag.viewStart - tickDelta;
+              save.viewEnd = drag.viewEnd - tickDelta;
+              save.viewChange = -((e.clientX - drag.prevX) / drag.width) * (drag.viewEnd - drag.viewStart);
+              drag.prevX = e.clientX;
             },
-            { passive: true, signal: abort.signal },
+            { passive: true, signal },
           );
 
-          window.addEventListener("mouseup", (e) => {
-            temp.tracksCanvasPanning = false;
-            abort.abort();
-          });
+          window.addEventListener("mouseup", abort);
         }
       }}
     ></canvas>

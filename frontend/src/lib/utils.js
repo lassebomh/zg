@@ -80,7 +80,7 @@ export function race(...promises) {
 /**
  * @param {(() => any) | undefined} onabort
  */
-export function abortSignal(onabort) {
+export function abortSignal(onabort = undefined) {
   const abortController = new AbortController();
   if (onabort) abortController.signal.addEventListener("abort", () => onabort());
   return {

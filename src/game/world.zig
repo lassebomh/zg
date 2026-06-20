@@ -141,16 +141,16 @@ pub const Box = struct {
         js.ctx.strokeStyle(RGBA.fromHex("#00ff00"));
         js.ctx.strokeRect(box.tl(), box.size);
 
-        js.ctx.strokeStyle(RGBA.fromHex("#ff00ff"));
-        js.ctx.beginPath();
-        js.ctx.moveTo(box.cc());
-        js.ctx.lineTo(box.cc() + box.impact * v2.fill(1));
-        js.ctx.stroke();
-
         js.ctx.strokeStyle(RGBA.fromHex("#0077ff"));
         js.ctx.beginPath();
         js.ctx.moveTo(box.cc());
-        js.ctx.lineTo(box.cc() + box.vel * v2.fill(1));
+        js.ctx.lineTo(box.cc() + box.vel * v2.fill(3));
+        js.ctx.stroke();
+
+        js.ctx.strokeStyle(RGBA.fromHex("#ff00ff"));
+        js.ctx.beginPath();
+        js.ctx.moveTo(box.cc());
+        js.ctx.lineTo(box.cc() + box.impact * v2.fill(3));
         js.ctx.stroke();
     }
 };
@@ -177,29 +177,14 @@ pub const Level = struct {
             .blocks = lib.Container(Box, 16).init(),
         };
 
-        level.blocks.new().item.* = Box.init(v2.xy(0, -40), v2.xy(300, 10));
+        level.blocks.addOne().item.* = Box.init(v2.xy(0, -40), v2.xy(300, 10));
 
-        level.blocks.new().item.* = Box.init(v2.xy(0, 20), v2.xy(100, 10));
-        level.blocks.new().item.* = Box.init(v2.xy(0, 30), v2.xy(200, 10));
-        level.blocks.new().item.* = Box.init(v2.xy(0, 40), v2.xy(300, 10));
+        level.blocks.addOne().item.* = Box.init(v2.xy(-30, -20), v2.xy(40, 10));
+
+        level.blocks.addOne().item.* = Box.init(v2.xy(0, 20), v2.xy(100, 10));
+        level.blocks.addOne().item.* = Box.init(v2.xy(0, 30), v2.xy(200, 10));
+        level.blocks.addOne().item.* = Box.init(v2.xy(0, 40), v2.xy(300, 10));
 
         return level;
     }
 };
-
-// pub const level0 = .{
-//     "###################################",
-//     "#                                 #",
-//     "#                                 #",
-//     "#                                 #",
-//     "#                                 #",
-//     "#                                 #",
-//     "#                                 #",
-//     "#                                 #",
-//     "#                                 #",
-//     "#                                 #",
-//     "#                                 #",
-//     "#                                 #",
-//     "###################################",
-// };
-// // pub fn parse_level(comptime str: []*const u8) type {}

@@ -16,22 +16,22 @@ pub const Avatar = struct {
         rstick: v2.Value,
     },
 
-    lower: game.Box,
+    box: game.Box,
 
     pub fn update(this: *Avatar, g: *game.State) void {
-        this.lower.vel[0] += this.inputs.lstick[0] * 0.5;
-        this.lower.vel[0] /= 1.3;
+        this.box.vel[0] += this.inputs.lstick[0] * 0.5;
+        this.box.vel[0] /= 1.3;
 
-        this.lower.vel[1] += 0.15;
-        if (this.inputs.jump and this.lower.impact[1] < 0) {
-            this.lower.vel[1] = -2;
+        this.box.vel[1] += 0.15;
+        if (this.inputs.jump and this.box.impact[1] < 0) {
+            this.box.vel[1] = -2;
         }
 
-        this.lower.update(g);
+        this.box.update(g);
     }
 
     pub fn render(this: *Avatar, prev: *Avatar, alpha: f32) void {
-        this.lower.render(prev.lower, alpha);
+        this.box.render(prev.box, alpha);
     }
 };
 
@@ -43,11 +43,11 @@ pub const Player = struct {
 
     pub fn upsert_avatar(this: *Player, g: *game.State) *Avatar {
         const avatar_id = this.avatar_id orelse init: {
-            var avatarEntry = g.avatars.new();
+            var avatarEntry = g.avatars.addOne();
             avatarEntry.item.id = avatarEntry.id;
 
-            avatarEntry.item.lower.position = v2.xy(0, 0);
-            avatarEntry.item.lower.size = v2.fill(10);
+            avatarEntry.item.box.position = v2.xy(0, 0);
+            avatarEntry.item.box.size = v2.xy(10, 20);
 
             // avatarEntry.item.*.torso = Box{
             //     .pos = v2.zero,
@@ -58,7 +58,7 @@ pub const Player = struct {
             break :init avatarEntry.id;
         };
 
-        return g.avatars.get(avatar_id).?;
+        return g.avatars.getId(avatar_id).?;
     }
 
     pub fn update(this: *Player, g: *game.State) void {
