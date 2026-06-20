@@ -14,27 +14,26 @@ const InputsLayout = {
   screen: { offset: 24, size: 8 }, // 2x f32
 } as const;
 
-const localId = Math.abs(crypto.getRandomValues(new Int32Array(1))[0]);
+// export const localId = Math.abs(crypto.getRandomValues(new Int32Array(1))[0]);
 
 // console.log(localId);
 
-export function inputControl(element: HTMLElement, getSlice: () => DataView) {
+export function inputControl(element: HTMLElement) {
   const stop = new AbortController();
   const signal = stop.signal;
-  {
-    const inputs = getSlice();
-    inputs.setInt32(InputsLayout.id.offset, localId, true);
 
-    inputs.setUint8(InputsLayout.screen.offset, element.clientWidth);
-    inputs.setUint8(InputsLayout.screen.offset + InputsLayout.screen.size, element.clientHeight);
-  }
+  const buffer = new ArrayBuffer(InputsLayout.screen.offset + InputsLayout.screen.size);
+  const inputs = new DataView(buffer);
+
+  inputs.setUint8(InputsLayout.screen.offset, element.clientWidth);
+  inputs.setUint8(InputsLayout.screen.offset + InputsLayout.screen.size / 2, element.clientHeight);
+
   const resizeObserver = new ResizeObserver((entries) => {
     for (const entry of entries) {
       const { inlineSize, blockSize } = entry.contentBoxSize[0];
       {
-        const inputs = getSlice();
         inputs.setFloat32(InputsLayout.screen.offset, inlineSize, true);
-        inputs.setFloat32(InputsLayout.screen.offset + InputsLayout.screen.size, blockSize, true);
+        inputs.setFloat32(InputsLayout.screen.offset + InputsLayout.screen.size / 2, blockSize, true);
       }
     }
   });
@@ -46,16 +45,14 @@ export function inputControl(element: HTMLElement, getSlice: () => DataView) {
   element.addEventListener(
     "pointermove",
     (e) => {
-      const inputs = getSlice();
       inputs.setFloat32(InputsLayout.mouse.offset, e.offsetX, true);
-      inputs.setFloat32(InputsLayout.mouse.offset + InputsLayout.mouse.size, e.offsetY, true);
+      inputs.setFloat32(InputsLayout.mouse.offset + InputsLayout.mouse.size / 2, e.offsetY, true);
     },
     { signal, passive: true },
   );
   element.addEventListener(
     "pointerdown",
     (e) => {
-      const inputs = getSlice();
       if (e.button === 0) {
         inputs.setUint8(InputsLayout.mouse_left.offset, 1);
       } else if (e.button === 1) {
@@ -67,7 +64,6 @@ export function inputControl(element: HTMLElement, getSlice: () => DataView) {
   element.addEventListener(
     "pointerup",
     (e) => {
-      const inputs = getSlice();
       if (e.button === 0) {
         inputs.setUint8(InputsLayout.mouse_left.offset, 0);
       } else if (e.button === 1) {
@@ -84,7 +80,6 @@ export function inputControl(element: HTMLElement, getSlice: () => DataView) {
       if (!Number.isNaN(parseInt(key))) key = "number_" + key;
       if (key === " ") key = "space";
       if (key in InputsLayout) {
-        const inputs = getSlice();
         const { offset } = InputsLayout[key as keyof typeof InputsLayout];
         inputs.setUint8(offset, 1);
       }
@@ -99,7 +94,6 @@ export function inputControl(element: HTMLElement, getSlice: () => DataView) {
       if (!Number.isNaN(parseInt(key))) key = "number_" + key;
       if (key === " ") key = "space";
       if (key in InputsLayout) {
-        const inputs = getSlice();
         const { offset } = InputsLayout[key as keyof typeof InputsLayout];
         inputs.setUint8(offset, 0);
       }
@@ -108,7 +102,11 @@ export function inputControl(element: HTMLElement, getSlice: () => DataView) {
   );
 
   return {
-    stop: () => {
+    read: (peerId: number) => {
+      inputs.setInt32(InputsLayout.id.offset, peerId, true);
+      return buffer;
+    },
+    destroy: () => {
       resizeObserver.disconnect();
       stop.abort();
     },

@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const RGBA = @import("./utils.zig").RGBA;
+const RGBA = @import("../lib/root.zig").RGBA;
 
 extern fn jsFlushCommands(commandsTypesPtr: *[commandsCap]CommandType, commandsArgsPtr: *[commandsCap][7]f32, commandsLen: CommandsLen) void;
 

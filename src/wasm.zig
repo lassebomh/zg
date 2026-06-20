@@ -1,231 +1,137 @@
 const std = @import("std");
-const utils = @import("./utils.zig");
-const ctx = @import("./canvas.zig");
-const Container = @import("./container.zig").Container;
+const lib = @import("./lib/root.zig");
+const v2 = lib.v2;
 
-const inp = @import("./inputs.zig");
+const js = @import("./js/root.zig");
+const game = @import("./game/root.zig");
 
-const RGBA = utils.RGBA;
-const v2 = utils.v2;
+const wal = std.heap.wasm_allocator;
+const ArrayList = std.ArrayList;
 
-const TICK_RATE = 1000.0 / 60.0;
+// MARK: TODO REMOVE vec shorthand in inputs
 
-extern fn jsLogStr(ptr: [*]u8, len: u32) void;
-pub fn log(comptime fmt: []const u8, args: anytype) void {
-    const slice = std.fmt.allocPrint(std.heap.wasm_allocator, fmt, args) catch unreachable;
-    jsLogStr(slice.ptr, slice.len);
-    std.heap.wasm_allocator.free(slice);
-}
-pub fn fail(comptime fmt: []const u8, args: anytype) noreturn {
-    log(fmt, args);
-    unreachable;
-}
+var states: ArrayList(game.State) = .empty;
 
-fn update_boxes(boxes: *BoxContainer) void {
-    for (boxes.items[0..boxes.len]) |*box| {
-        box.pos += box.vel;
-    }
+var peersInputs: [4]ArrayList(js.inputs.Inputs) = .{
+    .empty, // peer 1
+    .empty, // peer 2
+    .empty, // peer 3
+    .empty, // peer 4
+};
+
+var jsPeersInput: js.inputs.Inputs = std.mem.zeroes(js.inputs.Inputs);
+
+export fn getInputsPtr() *js.inputs.Inputs {
+    return &jsPeersInput;
 }
 
-const Box = struct {
-    pos: v2.Value,
-    size: v2.Value,
-    vel: v2.Value,
-    static: bool,
+fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
+    // js.debug.log("{} {} {} {}", .{ tick, alpha, screen, peer_id });
+    const utick: usize = @intCast(tick);
 
-    fn topleft(this: *Box) v2.Value {
-        return this.pos - this.size / v2.fill(2);
+    // ensure it can hold tick and tick+1
+    try states.ensureTotalCapacity(wal, utick + 2);
+
+    // create the genesis state if it doesn't exist
+    if (states.items.len == 0) {
+        const genesis = try states.addOne(wal);
+        genesis.* = game.State.init();
     }
 
-    fn render(this: *Box, prev: *Box, alpha: f32) void {
-        const pos = v2.lerp(prev.topleft(), this.topleft(), v2.fill(alpha));
-        // const vel = v2.lerp(prev.vel, this.vel, alpha);
-        const size = v2.lerp(prev.size, this.size, v2.fill(alpha));
+    // ensure all necessary state exist
+    while (states.items.len < tick + 2) {
+        const new_tick = states.items.len;
 
-        ctx.save();
-        defer ctx.restore();
+        var prev_state_copy = states.items[new_tick - 1];
 
-        ctx.lineWidth(1);
-        if (this.static) {
-            ctx.strokeStyle(RGBA.fromHex("#0000ff"));
-        } else {
-            ctx.strokeStyle(RGBA.fromHex("#ff0000"));
-        }
-        ctx.strokeRect(pos, size);
-    }
-};
+        var new_state = &prev_state_copy;
 
-const BoxContainer = Container(Box, 32);
+        var input_frame: [4]js.inputs.Inputs = undefined;
 
-const Avatar = struct {
-    id: usize,
-    inputs: struct {
-        lstick: v2.Value,
-        rstick: v2.Value,
-    },
+        for (peersInputs, 0..4, 1..5) |peer_inputs, i, inputs_peer_id| {
+            var inputs = &input_frame[i];
 
-    torso_id: usize,
-    fn get_torso(this: *Avatar, g: *State) *Box {
-        return g.boxes.get(this.torso_id).?;
-    }
-
-    fn update(this: *Avatar, g: *State) void {
-        var torso = this.get_torso(g);
-        torso.vel += this.inputs.lstick * v2.fill(0.5);
-        torso.vel /= v2.fill(1.3);
-    }
-};
-const AvatarContainer = Container(Avatar, inp.MaxPeers); // should multiply if controllers are supported
-
-const Player = struct {
-    id: usize,
-    peer_id: i32,
-    avatar_id: ?usize,
-    inputs: inp.Inputs,
-
-    fn upsert_avatar(this: *Player, g: *State) *Avatar {
-        const avatar_id = this.avatar_id orelse init: {
-            var avatarEntry = g.avatars.new();
-            avatarEntry.item.id = avatarEntry.id;
-
-            const torsoEntry = g.boxes.new();
-            avatarEntry.item.torso_id = torsoEntry.id;
-            torsoEntry.item.pos = v2.zero;
-            torsoEntry.item.size = v2.fill(10);
-
-            // avatarEntry.item.*.torso = Box{
-            //     .pos = v2.zero,
-            //     .size = v2.fill(1),
-            //     .vel = v2.zero,
-            // };
-            this.avatar_id = avatarEntry.id;
-            break :init avatarEntry.id;
-        };
-
-        return g.avatars.get(avatar_id).?;
-    }
-
-    fn update(this: *Player, g: *State) void {
-        var avatar = this.upsert_avatar(g);
-
-        var lstick = v2.zero;
-        if (this.inputs.a) lstick[0] -= 1;
-        if (this.inputs.d) lstick[0] += 1;
-        if (this.inputs.w) lstick[1] -= 1;
-        if (this.inputs.s) lstick[1] += 1;
-        avatar.inputs.lstick = v2.clamp_length(lstick, 1);
-
-        var rstick = v2.zero;
-
-        if (this.inputs.a) rstick[0] -= 1;
-        if (this.inputs.d) rstick[0] += 1;
-        if (this.inputs.w) rstick[1] -= 1;
-        if (this.inputs.s) rstick[1] += 1;
-        avatar.inputs.rstick = v2.clamp_length(rstick, 1);
-    }
-};
-const PlayerContainer = Container(Player, inp.MaxPeers);
-
-const State = struct {
-    avatars: AvatarContainer,
-    players: PlayerContainer,
-    boxes: BoxContainer,
-
-    fn update(this: *State, peersInputs: []inp.Inputs) void {
-        for (peersInputs) |inputs| {
-            if (inputs.peer_id == 0) continue;
-
-            var player: *Player = find_player: {
-                for (this.players.items[0..this.players.len]) |*p| {
-                    if (p.peer_id == inputs.peer_id) {
-                        break :find_player p;
-                    }
-                }
-
-                var newPlayer = this.players.new();
-
-                newPlayer.item.id = newPlayer.id;
-                newPlayer.item.peer_id = inputs.peer_id;
-
-                break :find_player newPlayer.item;
-            };
-            player.inputs = inputs;
-            player.update(this);
+            if (peer_inputs.items.len == 0) {
+                inputs.peer_id = @intCast(inputs_peer_id);
+            } else {
+                const inputs_tick: usize = @min(new_tick - 1, peer_inputs.items.len - 1);
+                inputs.* = peer_inputs.items[inputs_tick];
+            }
         }
 
-        for (this.avatars.items[0..this.avatars.len]) |*avatar| {
-            avatar.update(this);
-        }
-        update_boxes(&this.boxes);
+        new_state.update(&input_frame);
+
+        const new_state_ref = try states.addOne(wal);
+        new_state_ref.* = new_state.*;
     }
 
-    fn render(this: *State, prev: *State, alpha: f32, screen: v2.Value) void {
-        defer ctx.flush();
+    const state_left = &states.items[utick];
+    const state_right = &states.items[utick + 1];
 
-        ctx.save();
-        defer ctx.restore();
+    state_right.render(state_left, alpha, screen, peer_id);
+}
 
-        ctx.clearRect(v2.zero, screen);
-
-        ctx.fillStyle(RGBA.fromHex("#000000"));
-        ctx.fillRect(v2.zero, screen);
-
-        ctx.translate(screen / v2.fill(2));
-        ctx.scale(v2.fill(5));
-
-        for (0..this.boxes.len) |box_i| {
-            const box = &this.boxes.items[box_i];
-            const box_id = this.boxes.ids[box_i];
-
-            const prevbox = prev.boxes.get(box_id) orelse continue;
-            box.render(prevbox, alpha);
-        }
-    }
-
-    fn init() State {
-        var state: State = .{
-            .avatars = AvatarContainer.init(),
-            .players = PlayerContainer.init(),
-            .boxes = BoxContainer.init(),
-        };
-
-        const ground = state.boxes.new();
-        ground.item.size = v2.xy(100, 20);
-        ground.item.pos = v2.xy(0, 20);
-        ground.item.static = true;
-
-        return state;
-    }
-};
-
-var prev_seen_tick: i32 = 0;
-var prev_state: ?State = null;
-
-var curr_state: State = State.init();
-
-export fn onAnimationFrame(timeOffset: i32, screenWidth: i32, screenHeight: i32) void {
+export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height: i32, peer_id: i32) void {
+    // js.debug.log("render: {} {} {} {} {}", .{ itick, alpha, screen_width, screen_height, peer_id });
     const screen: v2.Value = .{
-        @floatFromInt(screenWidth),
-        @floatFromInt(screenHeight),
+        @floatFromInt(screen_width),
+        @floatFromInt(screen_height),
     };
 
-    const ftick: f32 = @as(f32, @floatFromInt(timeOffset)) / TICK_RATE;
-    const itick: i32 = @trunc(ftick);
-    const alpha = ftick - @floor(ftick);
-
-    if (itick != prev_seen_tick) {
-        prev_seen_tick = itick;
-
-        prev_state = curr_state;
-        curr_state.update(&inp.peersInputs);
-        // if (itick == 100) {
-        // log("{}", .{inputs.inputs.mouse});
-        // }
-    }
-
-    curr_state.render(&(prev_state orelse curr_state), alpha, screen);
+    render(itick, alpha, screen, peer_id) catch |e| {
+        js.debug.fail("{any}", .{e});
+    };
 }
 
-export fn main() void {
-    log("{}", .{@sizeOf(State)});
+export fn jsPullInputs(itick: i32) void {
+    // js.debug.log("pull inputs: {}", .{itick});
+
+    pullInputs(itick) catch |e| {
+        js.debug.fail("{any}", .{e});
+    };
+}
+
+fn pullInputs(itick: i32) !void {
+    const tick: usize = @intCast(itick);
+    // js.debug.log("tick {}", .{tick});
+    const peer_id = jsPeersInput.peer_id;
+    // js.debug.log("peer_id {}", .{peer_id});
+    const peer_index: usize = @intCast(peer_id);
+    // js.debug.log("peer_index {}", .{peer_index});
+    var peerInputArray = peersInputs[peer_index];
+    // js.debug.log("peerInputArray {}", .{peerInputArray});
+
+    try peerInputArray.ensureTotalCapacity(wal, tick + 1);
+    // js.debug.log("peerInputArray {}", .{peerInputArray});
+
+    // js.debug.log("pop count = {}", .{tick - (states.items.len - 1)});
+
+    // pop all states that depends on the inputs were modifying
+    while (states.items.len - 1 > tick) {
+        _ = states.pop() orelse js.debug.fail("impossible", .{});
+    }
+
+    // js.debug.log("pop inputs count = {}", .{tick - (peerInputArray.items.len)});
+    // pop all input entries after and on this tick
+    while (peerInputArray.items.len > tick) {
+        _ = peerInputArray.pop() orelse js.debug.fail("impossible", .{});
+    }
+
+    // fill holes by duplicating the last inputs before this tick
+    if (peerInputArray.items.len > 0 and peerInputArray.items.len < tick) {
+        // js.debug.log("get last", .{});
+        const last = peerInputArray.getLast();
+
+        // js.debug.log("clone = {}", .{tick - peerInputArray.items.len});
+        while (peerInputArray.items.len < tick) {
+            const head = try peerInputArray.addOne(wal);
+            head.* = last;
+        }
+    }
+
+    // js.debug.log("1: add one = {}", .{peerInputArray});
+    const head = try peerInputArray.addOne(wal);
+    // js.debug.log("2: add one = {}", .{peerInputArray});
+    head.* = jsPeersInput;
+    js.debug.log("input({}) = {}", .{ tick, head.* });
 }

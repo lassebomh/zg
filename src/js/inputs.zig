@@ -1,11 +1,5 @@
 pub const MaxPeers = 16;
 
-pub var peersInputs: [MaxPeers]Inputs = undefined;
-
-export fn getInputsPtr() *[MaxPeers]Inputs {
-    return &peersInputs;
-}
-
 pub const Inputs = extern struct {
     peer_id: i32,
     w: bool,

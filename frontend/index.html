@@ -2,47 +2,64 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>public</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Debugger</title>
     <style>
-      canvas {
-        display: block;
-        width: 100%;
-        height: 100%;
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-
       html,
       body {
-        margin: 0;
-        width: 100%;
         height: 100%;
-        overflow: hidden;
+        background: #000;
+        color: #ccc;
         font-family: monospace;
-        font-size: 16px;
+        font-size: 13px;
       }
-      #frameTime {
-        position: fixed;
-        top: 0;
-        right: 0;
-        color: white;
-        background-color: black;
-        font-size: small;
-        font-weight: bold;
-        padding: 1px 2px;
+
+      #app {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        position: relative;
       }
-      #cursor {
-        position: fixed;
-        width: 8px;
-        height: 8px;
-        background-color: red;
+
+      .yaml {
+        .y-key {
+          color: #9cdcfe;
+        }
+        .y-colon {
+          color: #888;
+        }
+        .y-str {
+          color: #ce9178;
+        }
+        .y-num {
+          color: #b5cea8;
+        }
+        .y-bool {
+          color: #569cd6;
+          font-weight: 700;
+        }
+        .y-null {
+          color: #569cd6;
+          font-weight: 500;
+          font-style: italic;
+        }
+        .y-dash {
+          color: #888;
+        }
+        .y-bracket {
+          color: #888;
+        }
       }
     </style>
   </head>
   <body>
-    <canvas id="canvas"></canvas>
-    <script type="module" src="/src/main.ts"></script>
-    <div id="frameTime"></div>
-    <div id="cursor"></div>
+    <div id="app"></div>
+    <script type="module" src="./src/main.ts"></script>
   </body>
 </html>
