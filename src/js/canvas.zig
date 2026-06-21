@@ -2,7 +2,7 @@ const std = @import("std");
 
 const RGBA = @import("../lib/root.zig").RGBA;
 
-extern fn jsFlushCommands(commandsTypesPtr: *[commandsCap]CommandType, commandsArgsPtr: *[commandsCap][7]f32, commandsLen: CommandsLen) void;
+extern fn jsFlushCommands(commandsTypesPtr: *[commandsCap]CommandType, commandsArgsPtr: *[commandsCap][7]f32, commandsLen: u8) void;
 
 const CommandType = enum(i32) {
     none,
@@ -36,10 +36,9 @@ const CommandType = enum(i32) {
     shadowColor,
 };
 
-const CommandsLen = u8;
-const commandsCap = std.math.maxInt(CommandsLen);
+const commandsCap = 255;
 
-var commandsLen: CommandsLen = 0;
+var commandsLen: u8 = 0;
 var commandsArgs: [commandsCap][7]f32 = undefined;
 var commandsTypes: [commandsCap]CommandType = undefined;
 
@@ -53,7 +52,7 @@ pub fn flush() void {
 
 fn next() u32 {
     var i = commandsLen;
-    commandsLen = std.math.add(CommandsLen, commandsLen, 1) catch {
+    commandsLen = std.math.add(@TypeOf(commandsLen), commandsLen, 1) catch {
         flush();
         i = 0;
         return 0;

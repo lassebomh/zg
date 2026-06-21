@@ -8,7 +8,7 @@ pub fn log(comptime fmt: []const u8, args: anytype) void {
     std.heap.wasm_allocator.free(slice);
 }
 
-pub fn fail(comptime fmt: []const u8, args: anytype) noreturn {
-    log(fmt, args);
+pub fn fail(arg: anytype) noreturn {
+    log("{any}", .{arg});
     unreachable;
 }

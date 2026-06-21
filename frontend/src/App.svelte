@@ -98,7 +98,7 @@
         },
       });
 
-      const { memory, jsRenderTick, jsPullInputs, jsGetInputsPtr, ...unused } = instance.exports as any;
+      const { memory, jsRenderTick, jsPullInputBuffer, jsGetInputBufferPtr, ...unused } = instance.exports as any;
       const unusedNames = Object.keys(unused);
       if (unusedNames.length) throw new Error(`Unused export(s): ${unusedNames.join(", ")}`);
 
@@ -115,12 +115,11 @@
         const inputBuffer = new Uint8Array(inputController.read(save.selectedTrack));
         const memoryBuffer = new Uint8Array(
           (instance.exports.memory as WebAssembly.Memory).buffer,
-          jsGetInputsPtr(),
+          jsGetInputBufferPtr(),
           inputBuffer.byteLength,
         );
         memoryBuffer.set(inputBuffer);
-
-        jsPullInputs(tick);
+        jsPullInputBuffer(tick);
       };
 
       const inputController = inputControl(gameCanvas);

@@ -11,27 +11,25 @@ pub const State = struct {
     players: lib.Container(game.Player, game.MaxPlayers),
     level: game.Level,
 
-    pub fn update(this: *State, peersInputs: []js.inputs.Inputs) void {
-        for (peersInputs) |inputs| {
-            if (inputs.peer_id == 0) continue;
+    pub fn update(this: *State, inputs: []js.inputs.Input) void {
+        for (inputs) |input| {
+            if (input.peer_id == 0) continue;
 
-            var player: *game.Player = find_player: {
+            var player: *game.Player = upsert_player: {
                 for (this.players.items[0..this.players.len]) |*p| {
-                    if (p.peer_id == inputs.peer_id) {
-                        break :find_player p;
+                    if (p.peer_id == input.peer_id) {
+                        break :upsert_player p;
                     }
                 }
 
-                const newPlayerId = this.players.addOne();
-                var newPlayer = this.players.get(newPlayerId).?;
-                newPlayer.id = newPlayerId;
+                const new_player = this.players.addOne() catch |e| js.debug.fail(e);
 
-                newPlayer.id = newPlayer.id;
-                newPlayer.peer_id = inputs.peer_id;
+                new_player.id = new_player.id;
+                new_player.peer_id = input.peer_id;
 
-                break :find_player newPlayer;
+                break :upsert_player new_player;
             };
-            player.inputs = inputs;
+            player.input = input;
             player.update(this);
         }
 
@@ -58,8 +56,8 @@ pub const State = struct {
         for (this.players.items) |player| {
             if (player.peer_id == peer_id) {
                 const avatar = this.avatars.get(player.avatar_id orelse break).?;
-                const prevAvatar = prev.avatars.get(avatar.id) orelse avatar;
-                const pos = v2.lerp(prevAvatar.box.position, avatar.box.position, v2.fill(alpha));
+                const prev_avatar = prev.avatars.get(avatar.id) orelse avatar;
+                const pos = v2.lerp(prev_avatar.box.position, avatar.box.position, v2.fill(alpha));
                 js.ctx.translate(-pos);
                 break;
             }
@@ -70,7 +68,6 @@ pub const State = struct {
         for (0..this.avatars.len) |avatar_i| {
             const avatar = &this.avatars.items[avatar_i];
             const avatar_id = this.avatars.ids[avatar_i];
-
             const prev_avatar = prev.avatars.get(avatar_id) orelse continue;
             avatar.render(prev_avatar, alpha);
         }
@@ -80,7 +77,7 @@ pub const State = struct {
         const state: State = .{
             .avatars = lib.Container(game.Avatar, game.MaxPlayers).init(),
             .players = lib.Container(game.Player, game.MaxPlayers).init(),
-            .level = game.Level.init(),
+            .level = game.Level.init() catch |e| js.debug.fail(e),
         };
 
         return state;

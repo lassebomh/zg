@@ -104,6 +104,8 @@ pub const v2 = packed struct(u32) {
 };
 
 pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
+    const Error = error{OutOfMemory};
+
     const TContainer = struct {
         const Self = @This();
 
@@ -128,18 +130,17 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
             return out;
         }
 
-        pub fn addOne(self: *Self) usize {
+        pub fn addOne(self: *Self) Error!*T {
             if (self.len == capacity) {
-                unreachable;
+                return Error.OutOfMemory;
             }
             const index = self.len;
             self.len += 1;
-            return self.ids[index];
+            const id = self.ids[index];
+            var item = &self.items[id];
+            item.id = id; // Here we assume the existense of an "id" field.
+            return item;
         }
-
-        // pub fn get(self: *Self, id: ?usize) ?*T {
-        //     if (id == null) return null;
-        //     const index = self.ixs[id.?];
 
         pub fn get(self: *Self, id: usize) ?*T {
             const index = self.ixs[id];
@@ -149,7 +150,7 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
             return &self.items[index];
         }
 
-        pub fn deleteId(self: *Self, id: usize) void {
+        pub fn delete(self: *Self, id: usize) void {
             const index = self.ixs[id];
             if (index >= self.len) {
                 unreachable;

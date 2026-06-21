@@ -10,17 +10,30 @@ const ArrayList = std.ArrayList;
 
 var states: ArrayList(game.State) = .empty;
 
-var peersInputs: [4]ArrayList(js.inputs.Inputs) = .{
+var peers_inputs: [4]ArrayList(js.inputs.Input) = .{
     .empty, // peer 1
     .empty, // peer 2
     .empty, // peer 3
     .empty, // peer 4
 };
 
-var jsPeersInput: js.inputs.Inputs = std.mem.zeroes(js.inputs.Inputs);
+var input_buffer: js.inputs.Input = std.mem.zeroes(js.inputs.Input);
 
-export fn jsGetInputsPtr() *js.inputs.Inputs {
-    return &jsPeersInput;
+export fn jsGetInputBufferPtr() *js.inputs.Input {
+    return &input_buffer;
+}
+
+export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height: i32, peer_id: i32) void {
+    const screen: v2.Value = .{
+        @floatFromInt(screen_width),
+        @floatFromInt(screen_height),
+    };
+
+    render(itick, alpha, screen, peer_id) catch |e| js.debug.fail(e);
+}
+
+export fn jsPullInputBuffer(itick: i32) void {
+    pull_input_buffer(itick) catch |e| js.debug.fail(e);
 }
 
 fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
@@ -41,19 +54,19 @@ fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
 
         var prev_state_copy = states.items[new_tick - 1];
         var new_state = &prev_state_copy;
-        var input_frame: [4]js.inputs.Inputs = undefined;
+        var state_inputs: [4]js.inputs.Input = undefined;
 
-        for (peersInputs, 0..4, 1..5) |peer_inputs, i, inputs_peer_id| {
-            var inputs = &input_frame[i];
-            if (peer_inputs.items.len == 0) {
-                inputs.peer_id = @intCast(inputs_peer_id);
+        for (peers_inputs, 0..4, 1..5) |inputs, i, inputs_peer_id| {
+            var input = &state_inputs[i];
+            if (inputs.items.len == 0) {
+                input.peer_id = @intCast(inputs_peer_id);
             } else {
-                const inputs_tick: usize = @min(new_tick - 1, peer_inputs.items.len - 1);
-                inputs.* = peer_inputs.items[inputs_tick];
+                const inputs_tick: usize = @min(new_tick - 1, inputs.items.len - 1);
+                input.* = inputs.items[inputs_tick];
             }
         }
 
-        new_state.update(&input_frame);
+        new_state.update(&state_inputs);
 
         const new_state_ref = try states.addOne(wal);
         new_state_ref.* = new_state.*;
@@ -65,39 +78,22 @@ fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
     state_right.render(state_left, alpha, screen, peer_id);
 }
 
-export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height: i32, peer_id: i32) void {
-    const screen: v2.Value = .{
-        @floatFromInt(screen_width),
-        @floatFromInt(screen_height),
-    };
-
-    render(itick, alpha, screen, peer_id) catch |e| {
-        js.debug.fail("{any}", .{e});
-    };
-}
-
-export fn jsPullInputs(itick: i32) void {
-    pullInputs(itick) catch |e| {
-        js.debug.fail("{any}", .{e});
-    };
-}
-
-fn pullInputs(itick: i32) !void {
+fn pull_input_buffer(itick: i32) !void {
     const tick: usize = @intCast(itick);
-    const peer_id = jsPeersInput.peer_id;
+    const peer_id = input_buffer.peer_id;
     const peer_index: usize = @intCast(peer_id - 1);
-    var peerInputArray = &peersInputs[peer_index];
+    var peerInputArray = &peers_inputs[peer_index];
 
     try peerInputArray.ensureTotalCapacity(wal, tick + 1);
 
     // pop all states that depends on the inputs were modifying
     while (states.items.len - 1 > tick) {
-        _ = states.pop() orelse js.debug.fail("impossible", .{});
+        _ = states.pop() orelse js.debug.fail("impossible");
     }
 
     // pop all input entries after and on this tick
     while (peerInputArray.items.len > tick) {
-        _ = peerInputArray.pop() orelse js.debug.fail("impossible", .{});
+        _ = peerInputArray.pop() orelse js.debug.fail("impossible");
     }
 
     // fill holes by duplicating the last inputs before this tick
@@ -111,5 +107,5 @@ fn pullInputs(itick: i32) !void {
     }
 
     const head = try peerInputArray.addOne(wal);
-    head.* = jsPeersInput;
+    head.* = input_buffer;
 }

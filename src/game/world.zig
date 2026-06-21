@@ -110,10 +110,10 @@ pub const Box = struct {
         this.impact = v2.zero;
 
         for (g.level.blocks.items[0..g.level.blocks.len]) |block| {
-            const bdist = (block.y_top() + block.vel[1]) - (this.y_bottom() + this.vel[1]);
-            const tdist = (this.y_top() + this.vel[1]) - (block.y_bottom() + block.vel[1]);
-            const rdist = (block.x_left() + block.vel[0]) - (this.x_right() + this.vel[0]);
-            const ldist = (this.x_left() + this.vel[0]) - (block.x_right() + block.vel[0]);
+            const bdist = (block.box.y_top() + block.box.vel[1]) - (this.y_bottom() + this.vel[1]);
+            const tdist = (this.y_top() + this.vel[1]) - (block.box.y_bottom() + block.box.vel[1]);
+            const rdist = (block.box.x_left() + block.box.vel[0]) - (this.x_right() + this.vel[0]);
+            const ldist = (this.x_left() + this.vel[0]) - (block.box.x_right() + block.box.vel[0]);
 
             if (bdist < 0 and ldist < 0 and rdist < 0 and tdist < 0) {
                 if (@max(ldist, rdist) > @max(bdist, tdist)) {
@@ -155,36 +155,54 @@ pub const Box = struct {
     }
 };
 
-pub const Level = struct {
-    blocks: lib.Container(Box, 16),
+pub const Block = struct {
+    id: usize,
+    box: Box,
 
-    pub fn collides(this: *Level, pos: v2.Value) bool {
-        _ = this;
-        _ = pos;
-        return true;
+    pub fn render(this: *Block) void {
+        js.ctx.save();
+        defer js.ctx.restore();
+
+        js.ctx.lineWidth(0.5);
+        js.ctx.fillStyle(RGBA.fromHex("#666666"));
+        js.ctx.fillRect(this.box.tl(), this.box.size);
     }
+};
+
+pub const Level = struct {
+    blocks: lib.Container(Block, 16),
 
     pub fn render(this: *Level) void {
-        js.ctx.fillStyle(RGBA.fromHex("#0000ff"));
-
-        for (this.blocks.items[0..this.blocks.len]) |block| {
-            block.render(block, 1);
+        for (this.blocks.items[0..this.blocks.len]) |*block| {
+            block.render();
         }
     }
 
-    pub fn init() Level {
+    pub fn init() !Level {
         var level = Level{
-            .blocks = lib.Container(Box, 16).init(),
+            .blocks = lib.Container(Block, 16).init(),
         };
 
-        level.blocks.get(level.blocks.addOne()).?.* = Box.init(v2.xy(0, -40), v2.xy(300, 10));
-
-        level.blocks.get(level.blocks.addOne()).?.* = Box.init(v2.xy(-30, -20), v2.xy(40, 10));
-
-        level.blocks.get(level.blocks.addOne()).?.* = Box.init(v2.xy(0, 20), v2.xy(100, 10));
-        level.blocks.get(level.blocks.addOne()).?.* = Box.init(v2.xy(0, 30), v2.xy(200, 10));
-        level.blocks.get(level.blocks.addOne()).?.* = Box.init(v2.xy(0, 40), v2.xy(300, 10));
-
+        {
+            var block = try level.blocks.addOne();
+            block.box = Box.init(v2.xy(0, -40), v2.xy(300, 10));
+        }
+        {
+            var block = try level.blocks.addOne();
+            block.box = Box.init(v2.xy(-30, -20), v2.xy(40, 10));
+        }
+        {
+            var block = try level.blocks.addOne();
+            block.box = Box.init(v2.xy(0, 20), v2.xy(100, 10));
+        }
+        {
+            var block = try level.blocks.addOne();
+            block.box = Box.init(v2.xy(0, 30), v2.xy(200, 10));
+        }
+        {
+            var block = try level.blocks.addOne();
+            block.box = Box.init(v2.xy(0, 40), v2.xy(300, 10));
+        }
         return level;
     }
 };

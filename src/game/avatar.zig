@@ -39,15 +39,13 @@ pub const Player = struct {
     id: usize,
     peer_id: i32,
     avatar_id: ?usize,
-    inputs: js.inputs.Inputs,
+    input: js.inputs.Input,
 
     pub fn upsert_avatar(this: *Player, g: *game.State) *Avatar {
         const avatar_id = this.avatar_id orelse init: {
-            const avatarId = g.avatars.addOne();
-            const avatar = g.avatars.get(avatarId).?;
-            avatar.id = avatarId;
-            avatar.box.position = v2.xy(0, 0);
-            avatar.box.size = v2.xy(10, 15);
+            const avatar = g.avatars.addOne() catch |e| js.debug.fail(e);
+            this.avatar_id = avatar.id;
+            avatar.box = game.Box.init(v2.xy(0, 0), v2.xy(10, 15));
             break :init avatar.id;
         };
 
@@ -58,20 +56,20 @@ pub const Player = struct {
         var avatar = this.upsert_avatar(g);
 
         var lstick = v2.zero;
-        if (this.inputs.a) lstick[0] -= 1;
-        if (this.inputs.d) lstick[0] += 1;
-        if (this.inputs.w) lstick[1] -= 1;
-        if (this.inputs.s) lstick[1] += 1;
+        if (this.input.a) lstick[0] -= 1;
+        if (this.input.d) lstick[0] += 1;
+        if (this.input.w) lstick[1] -= 1;
+        if (this.input.s) lstick[1] += 1;
         avatar.inputs.lstick = v2.clamp_length(lstick, 1);
 
         var rstick = v2.zero;
 
-        if (this.inputs.a) rstick[0] -= 1;
-        if (this.inputs.d) rstick[0] += 1;
-        if (this.inputs.w) rstick[1] -= 1;
-        if (this.inputs.s) rstick[1] += 1;
+        if (this.input.a) rstick[0] -= 1;
+        if (this.input.d) rstick[0] += 1;
+        if (this.input.w) rstick[1] -= 1;
+        if (this.input.s) rstick[1] += 1;
         avatar.inputs.rstick = v2.clamp_length(rstick, 1);
 
-        avatar.inputs.jump = this.inputs.space;
+        avatar.inputs.jump = this.input.space;
     }
 };

@@ -1,6 +1,4 @@
-pub const MaxPeers = 16;
-
-pub const Inputs = extern struct {
+pub const Input = extern struct {
     peer_id: i32,
     w: bool,
     a: bool,

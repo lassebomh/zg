@@ -16,10 +16,6 @@ const InputsLayout = {
   screen_height: { offset: 28, size: 4 },
 };
 
-// export const localId = Math.abs(crypto.getRandomValues(new Int32Array(1))[0]);
-
-// console.log(localId);
-
 export function inputControl(element: HTMLElement) {
   const stop = new AbortController();
   const signal = stop.signal;
