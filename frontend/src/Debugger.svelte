@@ -224,22 +224,31 @@
       const w = tracksWidth;
       const h = tracksHeight;
       const dpr = devicePixelRatio;
+      const range = ui.viewEnd - ui.viewStart;
+
+      function tickX(tick: number) {
+        return Math.round(((tick - ui.viewStart) / range) * w);
+      }
 
       tracksCtx.fillStyle = "#111";
       tracksCtx.fillRect(0, 0, w, h);
+
+      const playheadX = tickX(tick);
+      const playheadX2 = tickX(tick + 1);
+
+      tracksCtx.fillStyle = "#222";
+      tracksCtx.fillRect(playheadX, 0, playheadX2 - playheadX, h);
 
       tracksCtx.textAlign = "center";
       tracksCtx.textBaseline = "top";
       tracksCtx.font = `900 ${10 * dpr}px monospace`;
 
-      const range = ui.viewEnd - ui.viewStart;
-
-      // Center line
+      // Free playhead
       tracksCtx.strokeStyle = "#888888";
       tracksCtx.lineWidth = dpr;
       tracksCtx.beginPath();
-      tracksCtx.moveTo(((ui.playheadTick - ui.viewStart) / range) * w, 0);
-      tracksCtx.lineTo(((ui.playheadTick - ui.viewStart) / range) * w, h);
+      tracksCtx.moveTo(tickX(ui.playheadTick), 0);
+      tracksCtx.lineTo(tickX(ui.playheadTick), h);
       tracksCtx.stroke();
 
       // Tick marks
@@ -248,16 +257,19 @@
       const subStep = Math.max(1, step / logStep);
       const firstTick = Math.floor(ui.viewStart / subStep) * subStep;
 
+      function isMajor(t: number) {
+        return Math.abs(t - Math.round(t / step) * step) < subStep * 0.1;
+      }
+
       for (let tick = firstTick; tick <= ui.viewEnd; tick += subStep) {
         if (tick < -0.000001) {
           continue;
         }
-        const x = ((tick - ui.viewStart) / range) * w;
-        const isMajor = Math.abs(tick - Math.round(tick / step) * step) < subStep * 0.1;
+        const x = tickX(tick);
 
-        if (isMajor) {
+        tracksCtx.strokeStyle = "#666666";
+        if (isMajor(tick)) {
           // Major tick line
-          tracksCtx.strokeStyle = "#666666";
           tracksCtx.lineWidth = dpr;
           tracksCtx.beginPath();
           tracksCtx.moveTo(x, 0);
@@ -265,12 +277,13 @@
           tracksCtx.stroke();
         } else {
           // Minor tick line
-          tracksCtx.strokeStyle = "#444444";
+          // tracksCtx.setLineDash([2, 2]);
           tracksCtx.lineWidth = dpr;
           tracksCtx.beginPath();
-          tracksCtx.moveTo(x, 0);
-          tracksCtx.lineTo(x, h);
+          tracksCtx.moveTo(x, h);
+          tracksCtx.lineTo(x, h - h / 8);
           tracksCtx.stroke();
+          // tracksCtx.setLineDash([]);
         }
       }
 
@@ -284,20 +297,20 @@
         tracksCtx.strokeStyle = "cornflowerblue";
         tracksCtx.fillStyle = "cornflowerblue";
 
-        tracksCtx.lineWidth = 4 * dpr;
-        tracksCtx.beginPath();
-        tracksCtx.moveTo(((startTick - ui.viewStart) / range) * w + 1, h / 2);
-        tracksCtx.lineTo(((endTick - ui.viewStart) / range) * w - 1, h / 2);
-        tracksCtx.stroke();
-
         const chevH = 14 * dpr;
-        const chevW = 10 * dpr;
-        const chevY = h / 2;
+        const chevW = 8 * dpr;
+        const chevY = h;
+
+        tracksCtx.lineWidth = 2 * dpr;
+        tracksCtx.beginPath();
+        tracksCtx.moveTo(tickX(startTick) + 1, chevY);
+        tracksCtx.lineTo(tickX(endTick) - 1, chevY);
+        tracksCtx.stroke();
 
         if (((endTick - startTick) / range) * w > chevW) {
           //start loop
           {
-            const playheadX = ((startTick - ui.viewStart) / range) * w;
+            const playheadX = tickX(startTick);
             tracksCtx.beginPath();
             tracksCtx.moveTo(playheadX + chevW, chevY);
             tracksCtx.lineTo(playheadX, chevY + chevH / 2);
@@ -307,7 +320,7 @@
           }
           //end loop
           {
-            const playheadX = ((endTick - ui.viewStart) / range) * w;
+            const playheadX = tickX(endTick);
             tracksCtx.beginPath();
             tracksCtx.moveTo(playheadX - chevW, chevY);
             tracksCtx.lineTo(playheadX, chevY + chevH / 2);
@@ -318,42 +331,41 @@
         }
       }
 
-      const grad = tracksCtx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, "#fff0");
-      grad.addColorStop(0.15, "#fff0");
-      grad.addColorStop(0.5, "#ffff");
-      tracksCtx.fillStyle = grad;
-      tracksCtx.strokeStyle = grad;
+      tracksCtx.fillStyle = "#fff";
+      tracksCtx.strokeStyle = "#fff";
+      tracksCtx.lineWidth = 2 * dpr;
 
-      // Playhead chevron
-      const chevH = 6 * dpr;
-      const chevW = 4 * dpr;
-      const playheadX = ((tick + alpha - ui.viewStart) / range) * w;
-      tracksCtx.beginPath();
-      tracksCtx.moveTo(playheadX + chevW, h);
-      tracksCtx.lineTo(playheadX - chevW, h);
-      tracksCtx.lineTo(playheadX, h - chevH);
-      tracksCtx.closePath();
-      tracksCtx.fill();
+      // View playhead
 
-      // Playhead line
-      tracksCtx.lineWidth = dpr;
-      tracksCtx.beginPath();
-      tracksCtx.moveTo(playheadX, 0);
-      tracksCtx.lineTo(playheadX, h);
-      tracksCtx.stroke();
+      if (!ui.alphaLock) {
+        const playheadX = tickX(tick + alpha);
+        const chevH = 8 * dpr;
+        const chevW = 4 * dpr;
+        tracksCtx.beginPath();
+        tracksCtx.moveTo(playheadX + chevW, h);
+        tracksCtx.lineTo(playheadX - chevW, h);
+        tracksCtx.lineTo(playheadX, h - chevH);
+        tracksCtx.closePath();
+        tracksCtx.fill();
+      } else {
+        const playheadX = tickX(tick);
+        const chevH = 8 * dpr;
+        const chevW = 8 * dpr;
+        tracksCtx.beginPath();
+        tracksCtx.moveTo(playheadX + chevW, h);
+        tracksCtx.lineTo(playheadX, h);
+        tracksCtx.lineTo(playheadX, h - chevH);
+        tracksCtx.closePath();
+        tracksCtx.fill();
+      }
 
-      // Label
-      for (let tick = firstTick; tick <= ui.viewEnd; tick += subStep) {
-        if (tick < -0.000001) {
+      for (let t = firstTick; t <= ui.viewEnd; t += subStep) {
+        if (t < -0.000001) {
           continue;
         }
-        const x = ((tick - ui.viewStart) / range) * w;
-        const isMajor = Math.abs(tick - Math.round(tick / step) * step) < subStep * 0.1;
-
-        if (isMajor) {
+        if (isMajor(t)) {
           tracksCtx.fillStyle = "#aaaaaa";
-          tracksCtx.fillText(String(Math.round(tick)), x, 2 * dpr);
+          tracksCtx.fillText(String(Math.round(t)), tickX(t), 8 * dpr);
         }
       }
     }
@@ -457,6 +469,7 @@
       "click",
       () => {
         if (ui.loopEnd !== undefined) {
+          ui.playheadTick = (ui.viewEnd + ui.viewStart) / 2;
           ui.loopStart = undefined;
           ui.loopEnd = undefined;
           ui.loopEnabled = false;
@@ -601,12 +614,12 @@
     {@attach markerButton}
     class:active={ui.loopStart !== undefined && ui.loopEnd !== undefined}
   >
-    <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor">
-      <rect x="1" y="1" width="2" height="10" />
-      <polygon points="3,1 7,1 3,4" />
-      <rect x="15" y="1" width="2" height="10" />
-      <polygon points="15,1 11,1 15,4" />
-      <rect x="1" y="9" width="16" height="2" />
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <rect x="5" y="1" width="2" height="10" />
+      <polygon points="2,1 5,1 5,3" />
+      <polygon points="10,1 7,1 7,3" />
+      <polygon points="2,11 5,11 5,9" />
+      <polygon points="10,11 7,11 7,9" />
     </svg>
   </button>
 
