@@ -41,11 +41,15 @@
   }
 
   type UIState = {
+    alphaLock: boolean;
     viewStart: number;
     viewEnd: number;
     currentPeerId: number;
     playSpeed: number;
     onion: number;
+    loopStart: number | undefined;
+    loopEnd: number | undefined;
+    loopEnabled: boolean;
     cameraX: number;
     cameraY: number;
     cameraZoomPosition: number;
@@ -71,7 +75,8 @@
   import { createInputProxy, InputByteLength, inputControl } from "./inputs";
   import { persistent } from "./storage";
 
-  const PLAYER_COLORS = ["#cc2222", "#2288cc", "#22aa22", "#cccc22"];
+  const PLAYER_COLORS = ["#ef4444", "#3b9eed", "#45b358", "#ebc934"];
+
   const TICK_RATE = 1000 / 60;
 
   const temp = $state({
@@ -84,10 +89,14 @@
   });
 
   let ui = $state<UIState>({
+    alphaLock: false,
     viewStart: -30,
     viewEnd: 30,
     currentPeerId: 1,
-    playSpeed: 1,
+    loopStart: undefined,
+    loopEnd: undefined,
+    loopEnabled: false,
+    playSpeed: 0,
     onion: 0,
     cameraX: 0,
     cameraY: 0,
@@ -96,6 +105,10 @@
     cameraZoom: 1,
     stateQuery: "",
   });
+
+  const playheadTick = $derived(Math.max(0, (ui.viewStart + ui.viewEnd) / 2));
+  const tick = $derived(Math.floor(playheadTick));
+  const alpha = $derived(ui.alphaLock ? 0 : playheadTick - tick);
 
   if (save) {
     ui = save.ui;
@@ -113,18 +126,14 @@
   let gameWidth = 0;
   let gameHeight = 0;
 
+  let tracksWidth = 0;
+  let tracksHeight = 0;
+
   let gameCanvas: HTMLCanvasElement;
   let tracksCanvas: HTMLCanvasElement;
 
   const inputBuffer = new ArrayBuffer(InputByteLength);
   const inputProxy = createInputProxy(new DataView(inputBuffer));
-
-  function renderTick() {
-    const ftick = Math.max(0, (ui.viewStart + ui.viewEnd) / 2);
-    const tick = Math.floor(ftick);
-    const alpha = ftick - tick;
-    jsRenderTick(ftick, alpha, gameWidth, gameHeight, ui.currentPeerId);
-  }
 
   onMount(() => {
     const inputController = inputControl(gameCanvas, inputProxy);
@@ -148,11 +157,8 @@
 
     let frameRequest: number;
 
-    let tracksWidth = 0;
-    let tracksHeight = 0;
-
     function render() {
-      renderTick();
+      jsRenderTick(tick, alpha, gameWidth, gameHeight, ui.currentPeerId);
       renderTracks();
       frameRequest = requestAnimationFrame(render);
     }
@@ -191,7 +197,7 @@
       prevTime = time;
 
       if (temp.playing !== 0) {
-        temp.viewChange = (dt / TICK_RATE) * temp.playing * ui.playSpeed;
+        temp.viewChange = (dt / TICK_RATE) * temp.playing * Math.pow(2, ui.playSpeed);
       }
 
       if (!temp.tracksCanvasPanning) {
@@ -217,8 +223,19 @@
 
       tracksCtx.clearRect(0, 0, w, h);
 
+      tracksCtx.textAlign = "center";
+      tracksCtx.textBaseline = "top";
+      tracksCtx.font = `900 ${10 * dpr}px monospace`;
+
       const range = ui.viewEnd - ui.viewStart;
-      const trackH = h / 4;
+
+      // Center line
+      tracksCtx.strokeStyle = "#888888";
+      tracksCtx.lineWidth = dpr;
+      tracksCtx.beginPath();
+      tracksCtx.moveTo(w / 2, 0);
+      tracksCtx.lineTo(w / 2, h);
+      tracksCtx.stroke();
 
       // Tick marks
       const logStep = 5;
@@ -241,10 +258,6 @@
           tracksCtx.moveTo(x, 0);
           tracksCtx.lineTo(x, h);
           tracksCtx.stroke();
-
-          // Label
-          tracksCtx.fillStyle = "#aaaaaa";
-          tracksCtx.fillText(String(Math.round(tick)), x, 2 * dpr);
         } else {
           // Minor tick line
           tracksCtx.strokeStyle = "#444444";
@@ -256,68 +269,43 @@
         }
       }
 
-      // Draw track backgrounds
-      for (let i = 0; i < 4; i++) {
-        const y = i * trackH;
-        if (i > 0) {
-          tracksCtx.strokeStyle = "#333333";
-          tracksCtx.lineWidth = dpr;
-          tracksCtx.beginPath();
-          tracksCtx.moveTo(0, y);
-          tracksCtx.lineTo(w, y);
-          tracksCtx.stroke();
+      const grad = tracksCtx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, "#fff0");
+      grad.addColorStop(0.15, "#fff0");
+      grad.addColorStop(0.5, "#ffff");
+      tracksCtx.fillStyle = grad;
+      tracksCtx.strokeStyle = grad;
+
+      // Playhead chevron
+      const chevH = 6 * dpr;
+      const chevW = 4 * dpr;
+      const playheadX = ((tick + alpha - ui.viewStart) / range) * w;
+      tracksCtx.beginPath();
+      tracksCtx.moveTo(playheadX + chevW, h);
+      tracksCtx.lineTo(playheadX - chevW, h);
+      tracksCtx.lineTo(playheadX, h - chevH);
+      tracksCtx.closePath();
+      tracksCtx.fill();
+
+      // Playhead line
+      tracksCtx.lineWidth = dpr;
+      tracksCtx.beginPath();
+      tracksCtx.moveTo(playheadX, 0);
+      tracksCtx.lineTo(playheadX, h);
+      tracksCtx.stroke();
+
+      // Label
+      for (let tick = firstTick; tick <= ui.viewEnd; tick += subStep) {
+        if (tick < -0.000001) {
+          continue;
         }
-      }
+        const x = ((tick - ui.viewStart) / range) * w;
+        const isMajor = Math.abs(tick - Math.round(tick / step) * step) < subStep * 0.1;
 
-      tracksCtx.textAlign = "center";
-      tracksCtx.textBaseline = "top";
-      tracksCtx.font = `900 ${10 * dpr}px monospace`;
-
-      {
-        // Playhead line
-        tracksCtx.strokeStyle = "#ffffff";
-        tracksCtx.lineWidth = dpr;
-        tracksCtx.beginPath();
-        tracksCtx.moveTo(w / 2, 0);
-        tracksCtx.lineTo(w / 2, h);
-        tracksCtx.stroke();
-      }
-
-      if (ui.onion) {
-        tracksCtx.setLineDash([3]);
-        tracksCtx.strokeStyle = "#777777";
-        tracksCtx.lineWidth = dpr;
-
-        {
-          const x = w / 2 - (ui.onion / range) * w;
-          // Playhead line
-          tracksCtx.beginPath();
-          tracksCtx.moveTo(x, 0);
-          tracksCtx.lineTo(x, h);
-          tracksCtx.stroke();
+        if (isMajor) {
+          tracksCtx.fillStyle = "#aaaaaa";
+          tracksCtx.fillText(String(Math.round(tick)), x, 2 * dpr);
         }
-        {
-          const x = w / 2 + (ui.onion / range) * w;
-          // Playhead line
-          tracksCtx.beginPath();
-          tracksCtx.moveTo(x, 0);
-          tracksCtx.lineTo(x, h);
-          tracksCtx.stroke();
-        }
-        tracksCtx.setLineDash([]);
-      }
-
-      {
-        // Playhead chevron
-        const chevH = 6 * dpr;
-        const chevW = 6 * dpr;
-        tracksCtx.fillStyle = "#ffffff";
-        tracksCtx.beginPath();
-        tracksCtx.moveTo(w / 2 + chevW, h);
-        tracksCtx.lineTo(w / 2 - chevW, h);
-        tracksCtx.lineTo(w / 2, h - chevH);
-        tracksCtx.closePath();
-        tracksCtx.fill();
       }
     }
 
@@ -331,7 +319,250 @@
       cancelAnimationFrame(frameRequest);
     };
   });
+
+  let flushInputBufferInterval: number | undefined;
+
+  function stopAnyPlayback() {
+    temp.playing = 0;
+    temp.recording = false;
+    temp.viewChange = 0;
+    if (flushInputBufferInterval !== undefined) clearInterval(flushInputBufferInterval);
+  }
+
+  function recordButton(button: HTMLButtonElement) {
+    const { abort, signal } = abortSignal();
+
+    button.addEventListener(
+      "click",
+      () => {
+        const { abort, signal } = abortSignal(stopAnyPlayback);
+
+        temp.playing = 1;
+        temp.recording = true;
+
+        button.blur();
+        gameCanvas.focus();
+
+        flushInputBufferInterval = setInterval(() => {
+          inputProxy.peer_id = ui.currentPeerId;
+          flushInputBuffer(tick, inputBuffer);
+          // send inputs at double the tick rate just to be safe
+        }, TICK_RATE);
+
+        button.addEventListener("click", (e) => (e.stopPropagation(), abort()), { signal, capture: true });
+        window.addEventListener("keydown", (e) => e.key === "Escape" && abort(), { signal });
+      },
+      { signal },
+    );
+
+    return abort;
+  }
+
+  function alphaButton(button: HTMLButtonElement) {
+    const { abort, signal } = abortSignal();
+    button.addEventListener("click", () => (ui.alphaLock = !ui.alphaLock), { signal });
+    return abort;
+  }
+
+  function stepButton(step: number) {
+    return (button: HTMLElement) => {
+      const { abort, signal } = abortSignal();
+      button.addEventListener(
+        "click",
+        () => {
+          stopAnyPlayback();
+          ui.viewStart += step;
+          ui.viewEnd += step;
+        },
+        { signal },
+      );
+      return abort;
+    };
+  }
+
+  function playButton(direction: number) {
+    return (button: HTMLButtonElement) => {
+      const { abort, signal } = abortSignal();
+
+      button.addEventListener(
+        "click",
+        () => {
+          if (temp.playing === direction) {
+            stopAnyPlayback();
+          } else {
+            temp.playing = direction;
+          }
+        },
+        { signal },
+      );
+
+      return abort;
+    };
+  }
+
+  function markerButton(button: HTMLButtonElement) {
+    const { abort, signal } = abortSignal();
+
+    button.addEventListener(
+      "click",
+      () => {
+        if (ui.loopEnd) {
+          ui.loopStart = undefined;
+          ui.loopEnd = undefined;
+        } else if (ui.loopStart) {
+          ui.loopEnd = tick;
+        } else {
+          ui.loopStart = tick;
+        }
+      },
+      { signal },
+    );
+
+    return abort;
+  }
 </script>
+
+<div id="tracks-canvas-container">
+  <canvas
+    bind:this={tracksCanvas}
+    id="tracks-canvas"
+    class:panning={temp.tracksCanvasPanning}
+    onwheel={(e) => {
+      const range = ui.viewEnd - ui.viewStart;
+      if (e.shiftKey) {
+        temp.viewChange += (range * e.deltaY) / -40000;
+      } else {
+        const tickUnderMouse = ui.viewStart + 0.5 * range;
+        const zoomFactor = e.deltaY > 0 ? 1.3 : 1 / 1.3;
+        const newRange = Math.max(4, Math.min(10000, range * zoomFactor));
+        ui.viewStart = tickUnderMouse - 0.5 * newRange;
+        ui.viewEnd = tickUnderMouse + 0.5 * newRange;
+      }
+    }}
+    // Pan with mouse drag
+    onmousedown={(e) => {
+      if (e.button === 0) {
+        e.preventDefault();
+
+        temp.tracksCanvasPanning = true;
+        const { abort, signal } = abortSignal(() => (temp.tracksCanvasPanning = false));
+
+        const drag = {
+          x: e.clientX,
+          prevX: e.clientX,
+          viewStart: ui.viewStart,
+          viewEnd: ui.viewEnd,
+          width: e.currentTarget.width,
+        };
+
+        window.addEventListener(
+          "mousemove",
+          (e) => {
+            const dx = e.clientX - drag.x;
+            const tickDelta = (dx / drag.width) * (drag.viewEnd - drag.viewStart);
+            ui.viewStart = drag.viewStart - tickDelta;
+            ui.viewEnd = drag.viewEnd - tickDelta;
+            temp.viewChange = -((e.clientX - drag.prevX) / drag.width) * (drag.viewEnd - drag.viewStart);
+            drag.prevX = e.clientX;
+          },
+          { passive: true, signal },
+        );
+
+        window.addEventListener("mouseup", abort);
+      }
+    }}
+  ></canvas>
+</div>
+
+<div class="controls">
+  {#each { length: 4 } as _, i}
+    <button
+      style="--color: {PLAYER_COLORS[i]};"
+      class:active={ui.currentPeerId === i + 1}
+      onclick={() => (ui.currentPeerId = i + 1)}
+    >
+      P{i + 1}
+    </button>
+  {/each}
+
+  <div class="divider"></div>
+
+  <button {@attach stepButton(-1)} title="Step back">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <rect x="1" y="2" width="2" height="8" />
+      <polygon points="11,2 11,10 4,6" />
+    </svg>
+  </button>
+  <button {@attach playButton(-1)} class:active={!temp.recording && temp.playing === -1} title="Rewind">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <polygon points="10,1 1,6 10,11" />
+    </svg>
+  </button>
+  <button {@attach recordButton} class:active={temp.recording} title="Record" style="--color: #ef4444 !important">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <circle cx="6" cy="6" r="5" />
+    </svg>
+  </button>
+  <button {@attach playButton(1)} class:active={!temp.recording && temp.playing === 1} title="Play">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <polygon points="2,1 11,6 2,11" />
+    </svg>
+  </button>
+  <button {@attach stepButton(1)} title="Step forward">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <polygon points="1,2 8,6 1,10" />
+      <rect x="9" y="2" width="2" height="8" />
+    </svg>
+  </button>
+
+  <div class="dropdown">
+    <div class="dropdown-head">
+      <button style="width: 48px;" onclick={() => (ui.playSpeed = 0)}>
+        1/{Math.pow(2, -ui.playSpeed)}
+      </button>
+    </div>
+    <div class="dropdown-body">
+      <input type="range" step="1" min={-8} max={0} bind:value={ui.playSpeed} />
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <button {@attach alphaButton} style:font-size="16px" class:active={ui.alphaLock} title="Force alpha=0">α</button>
+
+  <div class="divider"></div>
+
+  <button title="Add loop marker" {@attach markerButton}>
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+      <rect x="5" y="1" width="2" height="10" />
+      <polygon points="2,1 5,1 5,3" />
+      <polygon points="10,1 7,1 7,3" />
+      <polygon points="2,11 5,11 5,9" />
+      <polygon points="10,11 7,11 7,9" />
+    </svg>
+  </button>
+
+  <button class:active={ui.loopEnabled} onclick={() => (ui.loopEnabled = !ui.loopEnabled)} title="Loop">
+    <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor">
+      <rect x="1" y="1" width="2" height="10" />
+      <polygon points="3,1 7,1 3,4" />
+      <rect x="15" y="1" width="2" height="10" />
+      <polygon points="15,1 11,1 15,4" />
+      <rect x="1" y="9" width="16" height="2" />
+    </svg>
+  </button>
+
+  <div class="divider"></div>
+
+  <button
+    onclick={async () => {
+      await saveStore.delete();
+      location.reload();
+    }}
+  >
+    Reset
+  </button>
+</div>
 
 <div id="canvas-container" class:recording={temp.recording}>
   <div id="canvas-target">
@@ -348,155 +579,6 @@
       />
       <pre class="yaml" id="state-viewer-output"></pre>
     </div>
-  </div>
-</div>
-
-<div class="controls">
-  <div class="controls-playback">
-    <button
-      id="play-reverse"
-      title="Play reverse"
-      onpointerdown={(e) => {
-        temp.playing = -1;
-        const { abort, signal } = abortSignal(() => {
-          temp.playing = 0;
-        });
-        e.currentTarget.addEventListener("pointerleave", abort, { signal });
-        window.addEventListener("pointerup", abort, { signal });
-      }}>◀◀</button
-    >
-    <button
-      id="play"
-      title="Play"
-      onpointerdown={(e) => {
-        temp.playing = 1;
-        const { abort, signal } = abortSignal(() => {
-          temp.playing = 0;
-        });
-        e.currentTarget.addEventListener("pointerleave", abort, { signal });
-        window.addEventListener("pointerup", abort, { signal });
-      }}>▶▶</button
-    >
-  </div>
-
-  <div class="divider"></div>
-  <div class="controls-settings">
-    <div class="label">speed</div>
-    <select bind:value={ui.playSpeed} class="dropdown-menu-inner">
-      {#each { length: 7 } as _, i}
-        {@const value = Math.pow(2, i)}
-        <option value={1 / value}>1/{value}</option>
-      {/each}
-    </select>
-    <div class="label">onion</div>
-    <input type="number" id="onion" value="0" min="0" />
-  </div>
-  <div class="divider"></div>
-  <button
-    class="record-btn"
-    class:recording={temp.recording}
-    id="record"
-    onclick={(e) => {
-      temp.playing = 1;
-      temp.recording = true;
-      const flushInputBufferInterval = setInterval(() => {
-        const ftick = Math.max(0, (ui.viewStart + ui.viewEnd) / 2);
-        const tick = Math.floor(ftick);
-        inputProxy.peer_id = ui.currentPeerId;
-        flushInputBuffer(tick, inputBuffer);
-        // send inputs at double the tick rate just to be safe
-      }, TICK_RATE);
-      const { abort, signal } = abortSignal(() => {
-        temp.playing = 0;
-        temp.recording = false;
-        clearInterval(flushInputBufferInterval);
-      });
-      const button = e.currentTarget;
-      button.addEventListener(
-        "click",
-        (e) => {
-          e.stopPropagation();
-          abort();
-          button.blur();
-          gameCanvas.focus();
-        },
-        { signal, capture: true },
-      );
-      window.addEventListener("keydown", (e) => e.key === "Escape" && abort(), { signal, capture: true });
-    }}>⏺ REC</button
-  >
-  <div class="divider"></div>
-  <button
-    onclick={async () => {
-      await saveStore.delete();
-      location.reload();
-    }}>Reset</button
-  >
-</div>
-
-<div class="tracks">
-  <div class="track-labels">
-    {#each { length: 4 } as _, i}
-      <button
-        class="track-label"
-        style="--track-color: {PLAYER_COLORS[i]};"
-        class:selected={ui.currentPeerId === i + 1}
-        onclick={() => (ui.currentPeerId = i + 1)}
-      >
-        Player {i + 1}
-      </button>
-    {/each}
-  </div>
-  <div id="tracks-canvas-container">
-    <canvas
-      bind:this={tracksCanvas}
-      id="tracks-canvas"
-      class:panning={temp.tracksCanvasPanning}
-      onwheel={(e) => {
-        const range = ui.viewEnd - ui.viewStart;
-        if (e.shiftKey) {
-          temp.viewChange += (range * e.deltaY) / -60000;
-        } else {
-          const tickUnderMouse = ui.viewStart + 0.5 * range;
-          const zoomFactor = e.deltaY > 0 ? 1.1 : 1 / 1.1;
-          const newRange = Math.max(4, Math.min(10000, range * zoomFactor));
-          ui.viewStart = tickUnderMouse - 0.5 * newRange;
-          ui.viewEnd = tickUnderMouse + 0.5 * newRange;
-        }
-      }}
-      // Pan with mouse drag
-      onmousedown={(e) => {
-        if (e.button === 0) {
-          e.preventDefault();
-
-          temp.tracksCanvasPanning = true;
-          const { abort, signal } = abortSignal(() => (temp.tracksCanvasPanning = false));
-
-          const drag = {
-            x: e.clientX,
-            prevX: e.clientX,
-            viewStart: ui.viewStart,
-            viewEnd: ui.viewEnd,
-            width: e.currentTarget.width,
-          };
-
-          window.addEventListener(
-            "mousemove",
-            (e) => {
-              const dx = e.clientX - drag.x;
-              const tickDelta = (dx / drag.width) * (drag.viewEnd - drag.viewStart);
-              ui.viewStart = drag.viewStart - tickDelta;
-              ui.viewEnd = drag.viewEnd - tickDelta;
-              temp.viewChange = -((e.clientX - drag.prevX) / drag.width) * (drag.viewEnd - drag.viewStart);
-              drag.prevX = e.clientX;
-            },
-            { passive: true, signal },
-          );
-
-          window.addEventListener("mouseup", abort);
-        }
-      }}
-    ></canvas>
   </div>
 </div>
 
@@ -552,55 +634,13 @@
     }
   }
 
-  /* Tracks bar */
-  .tracks {
-    flex-shrink: 0;
-    display: flex;
-    height: 96px;
-    border-top: 1px solid #333;
-    background: #111;
-    user-select: none;
-  }
-  .track-labels {
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  .track-label {
-    border: none;
-    padding: 0 1em;
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    color: white;
-    cursor: pointer;
-    user-select: none;
-    border-bottom: 1px solid #222;
-    background-color: color-mix(in srgb, var(--track-color) 20%, transparent);
-
-    &:hover {
-      background-color: color-mix(in srgb, var(--track-color) 40%, transparent);
-    }
-    &.selected {
-      font-weight: bold;
-      background-color: color-mix(in srgb, var(--track-color) 100%, transparent);
-    }
-    &:active {
-      background-color: color-mix(in srgb, var(--track-color) 60%, transparent);
-    }
-  }
-  .track-label:last-child {
-    border-bottom: none;
-  }
   #tracks-canvas-container {
-    flex: 1;
-    min-width: 0;
     display: block;
     width: 100%;
-    height: 100%;
+    height: 50px;
     position: relative;
+    background: #111;
+    user-select: none;
   }
   #tracks-canvas {
     cursor: grab;
@@ -614,29 +654,31 @@
 
   .controls {
     user-select: none;
-    position: absolute;
-    bottom: calc(96px + 0.75rem);
-    left: 50%;
-    transform: translateX(-50%);
     display: flex;
+    justify-content: center;
     align-items: center;
     padding: 0.4rem 0.6rem;
-    gap: 0.5rem;
+    gap: 0.15rem;
     background-color: rgba(17, 17, 17, 0.9);
     border: 1px solid #333;
-    border-radius: 8px;
+    border-left: 0;
+    border-right: 0;
     z-index: 20;
-  }
-  .controls-playback {
-    display: flex;
-    align-items: center;
-    gap: 0.15rem;
+
+    .label {
+      color: #666;
+      font-size: 11px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
   }
   .controls button {
+    --color: #fff;
+
     font-family: monospace;
-    font-size: 14px;
+    font-size: 12px;
     background-color: transparent;
-    color: #ccc;
     border: none;
     padding: 0 0.5rem;
     height: 2rem;
@@ -645,26 +687,49 @@
     align-items: center;
     justify-content: center;
     border-radius: 4px;
+    position: relative;
 
+    color: var(--color);
+    z-index: 1;
+    opacity: 1;
+    min-width: 26px;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background-color: var(--color);
+      opacity: 0;
+      z-index: -1;
+    }
+
+    &:hover {
+      opacity: 1;
+
+      &::before {
+        opacity: 0.2;
+      }
+    }
+    &.active {
+      font-weight: 700;
+      opacity: 1;
+      color: #000 !important;
+      &::before {
+        opacity: 0.9;
+      }
+    }
+    &:active {
+      color: #000 !important;
+      &::before {
+        opacity: 0.7;
+      }
+    }
     &:focus {
       outline: none;
     }
   }
-  .controls button:hover {
-    background-color: #333;
-    color: #fff;
-  }
-  .controls-settings {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  .controls-settings .label {
-    color: #666;
-    font-size: 11px;
-  }
-  .controls select,
-  .controls input[type="number"] {
+  .controls select {
     font-family: monospace;
     font-size: 12px;
     background-color: #222;
@@ -678,27 +743,62 @@
       outline: 1px solid cornflowerblue;
     }
   }
-  .controls input[type="number"] {
-    width: 3.5rem;
+  .controls input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px;
+      height: 10px;
+      background: #ccc;
+      border-radius: 50%;
+      border: none;
+    }
+    &::-moz-range-thumb {
+      width: 10px;
+      height: 10px;
+      background: #ccc;
+      border-radius: 50%;
+      border: none;
+    }
+    &:hover {
+      background: #444;
+      &::-webkit-slider-thumb {
+        background: #fff;
+      }
+      &::-moz-range-thumb {
+        background: #fff;
+      }
+    }
   }
+
   .divider {
     width: 1px;
     height: 1.5rem;
+    margin: 0 5px;
     background-color: #333;
   }
-  .record-btn {
-    color: #c44 !important;
-    font-size: 12px !important;
-    width: auto !important;
-    padding: 0 0.5rem !important;
-    gap: 0.3rem;
-    &:hover {
-      background-color: #c443 !important;
+
+  .dropdown {
+    position: relative;
+    justify-content: center;
+    align-items: center;
+
+    &:hover .dropdown-body {
+      visibility: visible;
     }
-  }
-  .record-btn.recording {
-    background-color: #c44 !important;
-    color: #000 !important;
+
+    .dropdown-body {
+      visibility: hidden;
+      position: absolute;
+      top: 100%;
+    }
   }
 
   #inputs-viewer {

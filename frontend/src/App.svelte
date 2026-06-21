@@ -6,6 +6,6 @@
   <Debugger />
 
   {#snippet pending()}
-    loading wasm...
+    loading...
   {/snippet}
 </svelte:boundary>

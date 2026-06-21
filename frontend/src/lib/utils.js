@@ -88,3 +88,5 @@ export function abortSignal(onabort = undefined) {
     abort: () => abortController.abort(),
   };
 }
+
+// MARK: Todo make 'and' + 'or' variants of the abort signal
