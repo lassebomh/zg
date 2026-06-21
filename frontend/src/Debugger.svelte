@@ -42,6 +42,7 @@
 
   type UIState = {
     alphaLock: boolean;
+    playheadTick: number;
     viewStart: number;
     viewEnd: number;
     currentPeerId: number;
@@ -71,7 +72,7 @@
   import { onMount } from "svelte";
   import { attachCanvas } from "./canvas";
   import init from "./wasm/main.wasm?init";
-  import { abortSignal, assert } from "./lib/utils.js";
+  import { abortSignal, assert, now } from "./lib/utils.js";
   import { createInputProxy, InputByteLength, inputControl } from "./inputs";
   import { persistent } from "./storage";
 
@@ -85,11 +86,11 @@
     canvasOverlayPanning: false,
     tracksCanvasPanning: false,
     invalidStateQuery: false,
-    viewChange: 0,
   });
 
   let ui = $state<UIState>({
     alphaLock: false,
+    playheadTick: 0,
     viewStart: -30,
     viewEnd: 30,
     currentPeerId: 1,
@@ -106,9 +107,8 @@
     stateQuery: "",
   });
 
-  const playheadTick = $derived(Math.max(0, (ui.viewStart + ui.viewEnd) / 2));
-  const tick = $derived(Math.floor(playheadTick));
-  const alpha = $derived(ui.alphaLock ? 0 : playheadTick - tick);
+  const tick = $derived(Math.floor(ui.playheadTick));
+  const alpha = $derived(ui.alphaLock ? 0 : ui.playheadTick - tick);
 
   if (save) {
     ui = save.ui;
@@ -157,7 +157,37 @@
 
     let frameRequest: number;
 
+    let t0 = now();
     function render() {
+      let t1 = now();
+      let dt = t1 - t0;
+      t0 = t1;
+
+      if (ui.loopStart !== undefined && ui.loopEnd !== undefined && ui.loopEnabled) {
+        if (ui.playheadTick < ui.loopStart) ui.playheadTick = ui.loopStart;
+        if (ui.playheadTick > ui.loopEnd) {
+          if (temp.recording) {
+            stopAnyPlayback();
+            ui.playheadTick = ui.loopEnd;
+          } else {
+            ui.playheadTick = ui.loopStart;
+          }
+        }
+      }
+
+      if (temp.playing) {
+        const tickChange = (dt * temp.playing) / TICK_RATE / Math.pow(2, -ui.playSpeed);
+        ui.playheadTick += tickChange;
+      }
+
+      if (!ui.loopEnabled) {
+        const range = (ui.viewEnd - ui.viewStart) / 2;
+        ui.viewStart = ui.playheadTick - range;
+        ui.viewEnd = ui.playheadTick + range;
+      }
+
+      if (ui.playheadTick < 0) ui.playheadTick = 0;
+
       jsRenderTick(tick, alpha, gameWidth, gameHeight, ui.currentPeerId);
       renderTracks();
       frameRequest = requestAnimationFrame(render);
@@ -190,38 +220,13 @@
 
     const tracksCtx = tracksCanvasController.context;
 
-    let prevTime = performance.now();
     function renderTracks() {
-      const time = performance.now();
-      const dt = time - prevTime;
-      prevTime = time;
-
-      if (temp.playing !== 0) {
-        temp.viewChange = (dt / TICK_RATE) * temp.playing * Math.pow(2, ui.playSpeed);
-      }
-
-      if (!temp.tracksCanvasPanning) {
-        ui.viewStart += temp.viewChange;
-        ui.viewEnd += temp.viewChange;
-        temp.viewChange *= Math.pow(0.5, dt / 150);
-      }
-
-      if (temp.tracksCanvasPanning && temp.playing === 0) {
-        temp.viewChange *= Math.pow(0.5, dt / 50);
-      }
-
-      const viewUnderflow = -Math.min(0, (ui.viewEnd + ui.viewStart) / 2);
-      ui.viewEnd += viewUnderflow;
-      ui.viewStart += viewUnderflow;
-      if (viewUnderflow !== 0) {
-        temp.viewChange = 0;
-      }
-
       const w = tracksWidth;
       const h = tracksHeight;
       const dpr = devicePixelRatio;
 
-      tracksCtx.clearRect(0, 0, w, h);
+      tracksCtx.fillStyle = "#111";
+      tracksCtx.fillRect(0, 0, w, h);
 
       tracksCtx.textAlign = "center";
       tracksCtx.textBaseline = "top";
@@ -233,8 +238,8 @@
       tracksCtx.strokeStyle = "#888888";
       tracksCtx.lineWidth = dpr;
       tracksCtx.beginPath();
-      tracksCtx.moveTo(w / 2, 0);
-      tracksCtx.lineTo(w / 2, h);
+      tracksCtx.moveTo(((ui.playheadTick - ui.viewStart) / range) * w, 0);
+      tracksCtx.lineTo(((ui.playheadTick - ui.viewStart) / range) * w, h);
       tracksCtx.stroke();
 
       // Tick marks
@@ -266,6 +271,50 @@
           tracksCtx.moveTo(x, 0);
           tracksCtx.lineTo(x, h);
           tracksCtx.stroke();
+        }
+      }
+
+      if (ui.loopStart !== undefined) {
+        let startTick = ui.loopStart;
+        let endTick = ui.loopEnd ?? ui.playheadTick;
+
+        if (startTick > endTick) {
+          [startTick, endTick] = [endTick, startTick];
+        }
+        tracksCtx.strokeStyle = "cornflowerblue";
+        tracksCtx.fillStyle = "cornflowerblue";
+
+        tracksCtx.lineWidth = 4 * dpr;
+        tracksCtx.beginPath();
+        tracksCtx.moveTo(((startTick - ui.viewStart) / range) * w + 1, h / 2);
+        tracksCtx.lineTo(((endTick - ui.viewStart) / range) * w - 1, h / 2);
+        tracksCtx.stroke();
+
+        const chevH = 14 * dpr;
+        const chevW = 10 * dpr;
+        const chevY = h / 2;
+
+        if (((endTick - startTick) / range) * w > chevW) {
+          //start loop
+          {
+            const playheadX = ((startTick - ui.viewStart) / range) * w;
+            tracksCtx.beginPath();
+            tracksCtx.moveTo(playheadX + chevW, chevY);
+            tracksCtx.lineTo(playheadX, chevY + chevH / 2);
+            tracksCtx.lineTo(playheadX, chevY - chevH / 2);
+            tracksCtx.closePath();
+            tracksCtx.fill();
+          }
+          //end loop
+          {
+            const playheadX = ((endTick - ui.viewStart) / range) * w;
+            tracksCtx.beginPath();
+            tracksCtx.moveTo(playheadX - chevW, chevY);
+            tracksCtx.lineTo(playheadX, chevY + chevH / 2);
+            tracksCtx.lineTo(playheadX, chevY - chevH / 2);
+            tracksCtx.closePath();
+            tracksCtx.fill();
+          }
         }
       }
 
@@ -325,7 +374,9 @@
   function stopAnyPlayback() {
     temp.playing = 0;
     temp.recording = false;
-    temp.viewChange = 0;
+    // if (!ui.loopEnabled){
+    //   ui.playheadTick = (ui.viewEnd + ui.viewStart) / 2;
+    // }
     if (flushInputBufferInterval !== undefined) clearInterval(flushInputBufferInterval);
   }
 
@@ -371,8 +422,7 @@
         "click",
         () => {
           stopAnyPlayback();
-          ui.viewStart += step;
-          ui.viewEnd += step;
+          ui.playheadTick = Math.max(0, ui.playheadTick + step);
         },
         { signal },
       );
@@ -406,13 +456,26 @@
     button.addEventListener(
       "click",
       () => {
-        if (ui.loopEnd) {
+        if (ui.loopEnd !== undefined) {
           ui.loopStart = undefined;
           ui.loopEnd = undefined;
-        } else if (ui.loopStart) {
-          ui.loopEnd = tick;
+          ui.loopEnabled = false;
         } else {
-          ui.loopStart = tick;
+          if (ui.loopStart !== undefined) {
+            ui.loopEnd = Math.round(ui.playheadTick);
+            if (ui.loopEnd < ui.loopStart) {
+              [ui.loopEnd, ui.loopStart] = [ui.loopStart, ui.loopEnd];
+            }
+            ui.loopStart = ui.loopStart;
+            ui.loopEnd = ui.loopEnd;
+            ui.loopEnabled = true;
+            const newRange = (ui.loopEnd - ui.loopStart) * 2;
+            const newCenter = (ui.loopEnd + ui.loopStart) / 2;
+            ui.viewStart = newCenter - newRange / 2;
+            ui.viewEnd = newCenter + newRange / 2;
+          } else {
+            ui.loopStart = Math.round(ui.playheadTick);
+          }
         }
       },
       { signal },
@@ -426,18 +489,16 @@
   <canvas
     bind:this={tracksCanvas}
     id="tracks-canvas"
+    class:loop-mode={ui.loopEnabled}
     class:panning={temp.tracksCanvasPanning}
     onwheel={(e) => {
       const range = ui.viewEnd - ui.viewStart;
-      if (e.shiftKey) {
-        temp.viewChange += (range * e.deltaY) / -40000;
-      } else {
-        const tickUnderMouse = ui.viewStart + 0.5 * range;
-        const zoomFactor = e.deltaY > 0 ? 1.3 : 1 / 1.3;
-        const newRange = Math.max(4, Math.min(10000, range * zoomFactor));
-        ui.viewStart = tickUnderMouse - 0.5 * newRange;
-        ui.viewEnd = tickUnderMouse + 0.5 * newRange;
-      }
+
+      const tickUnderMouse = ui.viewStart + 0.5 * range;
+      const zoomFactor = e.deltaY > 0 ? 1.3 : 1 / 1.3;
+      const newRange = Math.max(4, Math.min(10000, range * zoomFactor));
+      ui.viewStart = tickUnderMouse - 0.5 * newRange;
+      ui.viewEnd = tickUnderMouse + 0.5 * newRange;
     }}
     // Pan with mouse drag
     onmousedown={(e) => {
@@ -447,23 +508,26 @@
         temp.tracksCanvasPanning = true;
         const { abort, signal } = abortSignal(() => (temp.tracksCanvasPanning = false));
 
-        const drag = {
-          x: e.clientX,
-          prevX: e.clientX,
-          viewStart: ui.viewStart,
-          viewEnd: ui.viewEnd,
-          width: e.currentTarget.width,
-        };
+        let startX = e.clientX;
+        let startTick = ui.playheadTick;
+        let range = ui.viewEnd - ui.viewStart;
+        let width = window.innerWidth;
+
+        if (ui.loopEnabled) {
+          startTick = ui.viewStart + (startX / width) * range;
+        }
 
         window.addEventListener(
           "mousemove",
           (e) => {
-            const dx = e.clientX - drag.x;
-            const tickDelta = (dx / drag.width) * (drag.viewEnd - drag.viewStart);
-            ui.viewStart = drag.viewStart - tickDelta;
-            ui.viewEnd = drag.viewEnd - tickDelta;
-            temp.viewChange = -((e.clientX - drag.prevX) / drag.width) * (drag.viewEnd - drag.viewStart);
-            drag.prevX = e.clientX;
+            const dx = e.clientX - startX;
+            let tickChange = (dx / width) * range;
+            if (ui.loopEnabled) tickChange *= -1;
+            ui.playheadTick = Math.max(0, startTick - tickChange);
+            if (ui.loopStart !== undefined && ui.loopEnd !== undefined && ui.loopEnabled) {
+              ui.playheadTick = Math.max(ui.loopStart, ui.playheadTick);
+              ui.playheadTick = Math.min(ui.loopEnd, ui.playheadTick);
+            }
           },
           { passive: true, signal },
         );
@@ -528,21 +592,15 @@
 
   <div class="divider"></div>
 
-  <button {@attach alphaButton} style:font-size="16px" class:active={ui.alphaLock} title="Force alpha=0">α</button>
+  <button {@attach alphaButton} class:active={ui.alphaLock} title="Disable frame interpolation">α=0</button>
 
   <div class="divider"></div>
 
-  <button title="Add loop marker" {@attach markerButton}>
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-      <rect x="5" y="1" width="2" height="10" />
-      <polygon points="2,1 5,1 5,3" />
-      <polygon points="10,1 7,1 7,3" />
-      <polygon points="2,11 5,11 5,9" />
-      <polygon points="10,11 7,11 7,9" />
-    </svg>
-  </button>
-
-  <button class:active={ui.loopEnabled} onclick={() => (ui.loopEnabled = !ui.loopEnabled)} title="Loop">
+  <button
+    title="Add loop marker"
+    {@attach markerButton}
+    class:active={ui.loopStart !== undefined && ui.loopEnd !== undefined}
+  >
     <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor">
       <rect x="1" y="1" width="2" height="10" />
       <polygon points="3,1 7,1 3,4" />
@@ -639,16 +697,19 @@
     width: 100%;
     height: 50px;
     position: relative;
-    background: #111;
     user-select: none;
   }
   #tracks-canvas {
-    cursor: grab;
     position: absolute;
     width: 100%;
     height: 100%;
+
+    cursor: grab;
     &.panning {
       cursor: grabbing;
+    }
+    &.loop-mode {
+      cursor: initial !important;
     }
   }
 
