@@ -40,6 +40,8 @@ function rgbaToString(r: number, g: number, b: number, alpha: number): string {
   }
 }
 
+// split this so the resize observer isn't linked with the command buffer stuff.
+
 export function attachCanvas({
   canvas,
   onresize,

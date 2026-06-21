@@ -23,6 +23,13 @@ export fn jsGetInputBufferPtr() *js.inputs.Input {
     return &input_buffer;
 }
 
+export fn jsGetPeerInputsPtr(peer_id: i32) [*]js.inputs.Input {
+    return peers_inputs[@intCast(peer_id - 1)].items.ptr;
+}
+export fn jsGetPeerInputsSize(peer_id: i32) i32 {
+    return @intCast(peers_inputs[@intCast(peer_id - 1)].items.len);
+}
+
 export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height: i32, peer_id: i32) void {
     const screen: v2.Value = .{
         @floatFromInt(screen_width),
