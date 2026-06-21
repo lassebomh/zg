@@ -26,8 +26,8 @@ export fn jsGetInputBufferPtr() *js.inputs.Input {
 export fn jsGetPeerInputsPtr(peer_id: i32) [*]js.inputs.Input {
     return peers_inputs[@intCast(peer_id - 1)].items.ptr;
 }
-export fn jsGetPeerInputsSize(peer_id: i32) i32 {
-    return @intCast(peers_inputs[@intCast(peer_id - 1)].items.len);
+export fn jsGetPeerInputsLen(peer_id: i32) usize {
+    return peers_inputs[@intCast(peer_id - 1)].items.len;
 }
 
 export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height: i32, peer_id: i32) void {
@@ -94,7 +94,7 @@ fn pull_input_buffer(itick: i32) !void {
     try peerInputArray.ensureTotalCapacity(wal, tick + 1);
 
     // pop all states that depends on the inputs were modifying
-    while (states.items.len - 1 > tick) {
+    while (states.items.len > 0 and states.items.len - 1 > tick) {
         _ = states.pop() orelse js.debug.fail("impossible");
     }
 

@@ -23,39 +23,69 @@
     jsPullInputBuffer,
     jsGetInputBufferPtr,
     jsGetPeerInputsPtr,
-    jsGetPeerInputsSize,
+    jsGetPeerInputsLen,
     ...unused
   } = instance.exports as any;
   const unusedNames = Object.keys(unused);
   if (unusedNames.length) throw new Error(`Unused export(s): ${unusedNames.join(", ")}`);
+
+  function flushInputBuffer(tick: number, buffer: ArrayBuffer) {
+    const inputBytes = new Uint8Array(buffer);
+    const memoryBuffer = new Uint8Array(
+      (instance.exports.memory as WebAssembly.Memory).buffer,
+      jsGetInputBufferPtr(),
+      inputBytes.byteLength,
+    );
+    memoryBuffer.set(inputBytes);
+    jsPullInputBuffer(tick);
+  }
+
+  type UIState = {
+    viewStart: number;
+    viewEnd: number;
+    currentPeerId: number;
+    playSpeed: number;
+    onion: number;
+    cameraX: number;
+    cameraY: number;
+    cameraZoomPosition: number;
+    cameraZoomPositionChange: number;
+    cameraZoom: number;
+    stateQuery: string;
+  };
+
+  type Save = {
+    ui: UIState;
+    inputs: Array<ArrayBuffer>;
+  };
+  const saveStore = await persistent<Save>("save");
+
+  const save = await saveStore.get();
 </script>
 
 <script lang="ts">
   import { onMount } from "svelte";
   import { attachCanvas } from "./canvas";
   import init from "./wasm/main.wasm?init";
-  import { abortSignal } from "./lib/utils.js";
+  import { abortSignal, assert } from "./lib/utils.js";
   import { createInputProxy, InputByteLength, inputControl } from "./inputs";
+  import { persistent } from "./storage";
 
   const PLAYER_COLORS = ["#cc2222", "#2288cc", "#22aa22", "#cccc22"];
   const TICK_RATE = 1000 / 60;
 
-  function getBaseLog(x: number, y: number) {
-    return Math.log(y) / Math.log(x);
-  }
-
-  let temp = $state({
+  const temp = $state({
     recording: false,
     playing: 0,
     canvasOverlayPanning: false,
     tracksCanvasPanning: false,
     invalidStateQuery: false,
+    viewChange: 0,
   });
 
-  let save = $state({
+  let ui = $state<UIState>({
     viewStart: -30,
     viewEnd: 30,
-    viewChange: 0,
     currentPeerId: 1,
     playSpeed: 1,
     onion: 0,
@@ -67,39 +97,54 @@
     stateQuery: "",
   });
 
+  if (save) {
+    ui = save.ui;
+
+    for (const inputSlice of save.inputs) {
+      const inputsCount = inputSlice.byteLength / InputByteLength;
+      assert(inputsCount === Math.floor(inputsCount), "Invalid inputs size");
+      for (let i = 0; i < inputsCount; i++) {
+        const inputBuffer = inputSlice.slice(i * InputByteLength, (i + 1) * InputByteLength);
+        flushInputBuffer(i, inputBuffer);
+      }
+    }
+  }
+
+  let gameWidth = 0;
+  let gameHeight = 0;
+
   let gameCanvas: HTMLCanvasElement;
   let tracksCanvas: HTMLCanvasElement;
 
   const inputBuffer = new ArrayBuffer(InputByteLength);
   const inputProxy = createInputProxy(new DataView(inputBuffer));
 
-  let gameWidth = 0;
-  let gameHeight = 0;
-
   function renderTick() {
-    const ftick = Math.max(0, (save.viewStart + save.viewEnd) / 2);
+    const ftick = Math.max(0, (ui.viewStart + ui.viewEnd) / 2);
     const tick = Math.floor(ftick);
     const alpha = ftick - tick;
-    jsRenderTick(ftick, alpha, gameWidth, gameHeight, save.currentPeerId);
-  }
-
-  function flushInputBuffer() {
-    const ftick = Math.max(0, (save.viewStart + save.viewEnd) / 2);
-    const tick = Math.floor(ftick);
-
-    inputProxy.peer_id = save.currentPeerId;
-    const inputBytes = new Uint8Array(inputBuffer);
-    const memoryBuffer = new Uint8Array(
-      (instance.exports.memory as WebAssembly.Memory).buffer,
-      jsGetInputBufferPtr(),
-      inputBytes.byteLength,
-    );
-    memoryBuffer.set(inputBytes);
-    jsPullInputBuffer(tick);
+    jsRenderTick(ftick, alpha, gameWidth, gameHeight, ui.currentPeerId);
   }
 
   onMount(() => {
     const inputController = inputControl(gameCanvas, inputProxy);
+
+    const saveInterval = setInterval(async () => {
+      const save: Save = {
+        ui: $state.snapshot(ui),
+        inputs: [],
+      };
+
+      for (let i = 0; i < 4; i++) {
+        const peer = i + 1;
+        const inputsPtr = jsGetPeerInputsPtr(peer);
+        const inputsLen = jsGetPeerInputsLen(peer);
+        if (inputsLen === 0) continue;
+        const memory = instance.exports.memory as WebAssembly.Memory;
+        save.inputs.push(memory.buffer.slice(inputsPtr, inputsPtr + inputsLen * InputByteLength));
+      }
+      await saveStore.set(save);
+    }, 1000);
 
     let frameRequest: number;
 
@@ -107,7 +152,7 @@
     let tracksHeight = 0;
 
     function render() {
-      renderTick?.();
+      renderTick();
       renderTracks();
       frameRequest = requestAnimationFrame(render);
     }
@@ -146,24 +191,24 @@
       prevTime = time;
 
       if (temp.playing !== 0) {
-        save.viewChange = (dt / TICK_RATE) * temp.playing * save.playSpeed;
+        temp.viewChange = (dt / TICK_RATE) * temp.playing * ui.playSpeed;
       }
 
       if (!temp.tracksCanvasPanning) {
-        save.viewStart += save.viewChange;
-        save.viewEnd += save.viewChange;
-        save.viewChange *= Math.pow(0.5, dt / 150);
+        ui.viewStart += temp.viewChange;
+        ui.viewEnd += temp.viewChange;
+        temp.viewChange *= Math.pow(0.5, dt / 150);
       }
 
       if (temp.tracksCanvasPanning && temp.playing === 0) {
-        save.viewChange *= Math.pow(0.5, dt / 50);
+        temp.viewChange *= Math.pow(0.5, dt / 50);
       }
 
-      const viewUnderflow = -Math.min(0, (save.viewEnd + save.viewStart) / 2);
-      save.viewEnd += viewUnderflow;
-      save.viewStart += viewUnderflow;
+      const viewUnderflow = -Math.min(0, (ui.viewEnd + ui.viewStart) / 2);
+      ui.viewEnd += viewUnderflow;
+      ui.viewStart += viewUnderflow;
       if (viewUnderflow !== 0) {
-        save.viewChange = 0;
+        temp.viewChange = 0;
       }
 
       const w = tracksWidth;
@@ -172,20 +217,20 @@
 
       tracksCtx.clearRect(0, 0, w, h);
 
-      const range = save.viewEnd - save.viewStart;
+      const range = ui.viewEnd - ui.viewStart;
       const trackH = h / 4;
 
       // Tick marks
       const logStep = 5;
-      const step = Math.max(1, Math.pow(logStep, Math.round(getBaseLog(logStep, range / 20))));
+      const step = Math.max(1, Math.pow(logStep, Math.round(Math.log(range / 20) / Math.log(logStep))));
       const subStep = Math.max(1, step / logStep);
-      const firstTick = Math.floor(save.viewStart / subStep) * subStep;
+      const firstTick = Math.floor(ui.viewStart / subStep) * subStep;
 
-      for (let tick = firstTick; tick <= save.viewEnd; tick += subStep) {
+      for (let tick = firstTick; tick <= ui.viewEnd; tick += subStep) {
         if (tick < -0.000001) {
           continue;
         }
-        const x = ((tick - save.viewStart) / range) * w;
+        const x = ((tick - ui.viewStart) / range) * w;
         const isMajor = Math.abs(tick - Math.round(tick / step) * step) < subStep * 0.1;
 
         if (isMajor) {
@@ -238,13 +283,13 @@
         tracksCtx.stroke();
       }
 
-      if (save.onion) {
+      if (ui.onion) {
         tracksCtx.setLineDash([3]);
         tracksCtx.strokeStyle = "#777777";
         tracksCtx.lineWidth = dpr;
 
         {
-          const x = w / 2 - (save.onion / range) * w;
+          const x = w / 2 - (ui.onion / range) * w;
           // Playhead line
           tracksCtx.beginPath();
           tracksCtx.moveTo(x, 0);
@@ -252,7 +297,7 @@
           tracksCtx.stroke();
         }
         {
-          const x = w / 2 + (save.onion / range) * w;
+          const x = w / 2 + (ui.onion / range) * w;
           // Playhead line
           tracksCtx.beginPath();
           tracksCtx.moveTo(x, 0);
@@ -282,6 +327,7 @@
       gameCanvasController.destroy();
       tracksCanvasController.destroy();
       inputController.destroy();
+      clearInterval(saveInterval);
       cancelAnimationFrame(frameRequest);
     };
   });
@@ -336,7 +382,7 @@
   <div class="divider"></div>
   <div class="controls-settings">
     <div class="label">speed</div>
-    <select bind:value={save.playSpeed} class="dropdown-menu-inner">
+    <select bind:value={ui.playSpeed} class="dropdown-menu-inner">
       {#each { length: 7 } as _, i}
         {@const value = Math.pow(2, i)}
         <option value={1 / value}>1/{value}</option>
@@ -354,7 +400,10 @@
       temp.playing = 1;
       temp.recording = true;
       const flushInputBufferInterval = setInterval(() => {
-        flushInputBuffer?.();
+        const ftick = Math.max(0, (ui.viewStart + ui.viewEnd) / 2);
+        const tick = Math.floor(ftick);
+        inputProxy.peer_id = ui.currentPeerId;
+        flushInputBuffer(tick, inputBuffer);
         // send inputs at double the tick rate just to be safe
       }, TICK_RATE);
       const { abort, signal } = abortSignal(() => {
@@ -376,6 +425,13 @@
       window.addEventListener("keydown", (e) => e.key === "Escape" && abort(), { signal, capture: true });
     }}>⏺ REC</button
   >
+  <div class="divider"></div>
+  <button
+    onclick={async () => {
+      await saveStore.delete();
+      location.reload();
+    }}>Reset</button
+  >
 </div>
 
 <div class="tracks">
@@ -384,8 +440,8 @@
       <button
         class="track-label"
         style="--track-color: {PLAYER_COLORS[i]};"
-        class:selected={save.currentPeerId === i + 1}
-        onclick={() => (save.currentPeerId = i + 1)}
+        class:selected={ui.currentPeerId === i + 1}
+        onclick={() => (ui.currentPeerId = i + 1)}
       >
         Player {i + 1}
       </button>
@@ -397,15 +453,15 @@
       id="tracks-canvas"
       class:panning={temp.tracksCanvasPanning}
       onwheel={(e) => {
-        const range = save.viewEnd - save.viewStart;
+        const range = ui.viewEnd - ui.viewStart;
         if (e.shiftKey) {
-          save.viewChange += (range * e.deltaY) / -60000;
+          temp.viewChange += (range * e.deltaY) / -60000;
         } else {
-          const tickUnderMouse = save.viewStart + 0.5 * range;
+          const tickUnderMouse = ui.viewStart + 0.5 * range;
           const zoomFactor = e.deltaY > 0 ? 1.1 : 1 / 1.1;
           const newRange = Math.max(4, Math.min(10000, range * zoomFactor));
-          save.viewStart = tickUnderMouse - 0.5 * newRange;
-          save.viewEnd = tickUnderMouse + 0.5 * newRange;
+          ui.viewStart = tickUnderMouse - 0.5 * newRange;
+          ui.viewEnd = tickUnderMouse + 0.5 * newRange;
         }
       }}
       // Pan with mouse drag
@@ -419,8 +475,8 @@
           const drag = {
             x: e.clientX,
             prevX: e.clientX,
-            viewStart: save.viewStart,
-            viewEnd: save.viewEnd,
+            viewStart: ui.viewStart,
+            viewEnd: ui.viewEnd,
             width: e.currentTarget.width,
           };
 
@@ -429,9 +485,9 @@
             (e) => {
               const dx = e.clientX - drag.x;
               const tickDelta = (dx / drag.width) * (drag.viewEnd - drag.viewStart);
-              save.viewStart = drag.viewStart - tickDelta;
-              save.viewEnd = drag.viewEnd - tickDelta;
-              save.viewChange = -((e.clientX - drag.prevX) / drag.width) * (drag.viewEnd - drag.viewStart);
+              ui.viewStart = drag.viewStart - tickDelta;
+              ui.viewEnd = drag.viewEnd - tickDelta;
+              temp.viewChange = -((e.clientX - drag.prevX) / drag.width) * (drag.viewEnd - drag.viewStart);
               drag.prevX = e.clientX;
             },
             { passive: true, signal },
