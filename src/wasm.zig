@@ -73,7 +73,13 @@ fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
             }
         }
 
+        js.debug.allow_log = @as(i32, @intCast(new_tick)) == tick;
+        if (js.debug.allow_log) {
+            js.debug.clear();
+        }
+
         new_state.update(&state_inputs);
+        js.debug.allow_log = false;
 
         const new_state_ref = try states.addOne(wal);
         new_state_ref.* = new_state.*;

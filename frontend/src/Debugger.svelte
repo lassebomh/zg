@@ -11,6 +11,9 @@
         const chars = new Uint8Array(buffer, ptr, length);
         console.log(dec.decode(chars));
       },
+      jsClear() {
+        console.clear();
+      },
       jsFlushCommands(commandsTypesPtr: number, commandsArgsPtr: number, commandsLen: number) {
         sendCanvasCommands?.(commandsTypesPtr, commandsArgsPtr, commandsLen);
       },
@@ -47,6 +50,7 @@
     viewEnd: number;
     currentPeerId: number;
     playSpeed: number;
+    playing: number;
     onion: number;
     loopStart: number | undefined;
     loopEnd: number | undefined;
@@ -82,7 +86,6 @@
 
   const temp = $state({
     recording: false,
-    playing: 0,
     canvasOverlayPanning: false,
     tracksCanvasPanning: false,
     invalidStateQuery: false,
@@ -97,6 +100,7 @@
     loopStart: undefined,
     loopEnd: undefined,
     loopEnabled: false,
+    playing: 0,
     playSpeed: 0,
     onion: 0,
     cameraX: 0,
@@ -175,8 +179,8 @@
         }
       }
 
-      if (temp.playing) {
-        const tickChange = (dt * temp.playing) / TICK_RATE / Math.pow(2, -ui.playSpeed);
+      if (ui.playing) {
+        const tickChange = (dt * ui.playing) / TICK_RATE / Math.pow(2, -ui.playSpeed);
         ui.playheadTick += tickChange;
       }
 
@@ -384,7 +388,7 @@
   let flushInputBufferInterval: number | undefined;
 
   function stopAnyPlayback() {
-    temp.playing = 0;
+    ui.playing = 0;
     temp.recording = false;
     // if (!ui.loopEnabled){
     //   ui.playheadTick = (ui.viewEnd + ui.viewStart) / 2;
@@ -400,7 +404,7 @@
       () => {
         const { abort, signal } = abortSignal(stopAnyPlayback);
 
-        temp.playing = 1;
+        ui.playing = 1;
         temp.recording = true;
 
         button.blur();
@@ -449,10 +453,10 @@
       button.addEventListener(
         "click",
         () => {
-          if (temp.playing === direction) {
+          if (ui.playing === direction) {
             stopAnyPlayback();
           } else {
-            temp.playing = direction;
+            ui.playing = direction;
           }
         },
         { signal },
@@ -570,7 +574,7 @@
       <polygon points="11,2 11,10 4,6" />
     </svg>
   </button>
-  <button {@attach playButton(-1)} class:active={!temp.recording && temp.playing === -1} title="Rewind">
+  <button {@attach playButton(-1)} class:active={!temp.recording && ui.playing === -1} title="Rewind">
     <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
       <polygon points="10,1 1,6 10,11" />
     </svg>
@@ -580,7 +584,7 @@
       <circle cx="6" cy="6" r="5" />
     </svg>
   </button>
-  <button {@attach playButton(1)} class:active={!temp.recording && temp.playing === 1} title="Play">
+  <button {@attach playButton(1)} class:active={!temp.recording && ui.playing === 1} title="Play">
     <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
       <polygon points="2,1 11,6 2,11" />
     </svg>
@@ -739,13 +743,13 @@
     border-right: 0;
     z-index: 20;
 
-    .label {
+    /* .label {
       color: #666;
       font-size: 11px;
       display: flex;
       justify-content: center;
       align-items: center;
-    }
+    } */
   }
   .controls button {
     --color: #fff;
@@ -803,7 +807,7 @@
       outline: none;
     }
   }
-  .controls select {
+  /* .controls select {
     font-family: monospace;
     font-size: 12px;
     background-color: #222;
@@ -813,10 +817,9 @@
     padding: 0.2rem 0.3rem;
     height: 1.75rem;
     &:focus {
-      /* border: 1px solid #777; */
       outline: 1px solid cornflowerblue;
     }
-  }
+  } */
   .controls input[type="range"] {
     -webkit-appearance: none;
     appearance: none;

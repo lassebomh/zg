@@ -57,7 +57,7 @@ pub const State = struct {
             if (player.peer_id == peer_id) {
                 const avatar = this.avatars.get(player.avatar_id orelse break).?;
                 const prev_avatar = prev.avatars.get(avatar.id) orelse avatar;
-                const pos = v2.lerp(prev_avatar.box.position, avatar.box.position, v2.fill(alpha));
+                const pos = v2.lerp(prev_avatar.collision.position, avatar.collision.position, v2.fill(alpha));
                 js.ctx.translate(-pos);
                 break;
             }

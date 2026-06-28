@@ -131,14 +131,14 @@ pub const Box = struct {
         this.position += this.vel;
     }
 
-    pub fn render(this: Box, prev: Box, alpha: f32) void {
+    pub fn render(this: Box, prev: Box, color: RGBA, alpha: f32) void {
         const box = this.lerp(prev, alpha);
 
         js.ctx.save();
         defer js.ctx.restore();
 
         js.ctx.lineWidth(0.5);
-        js.ctx.strokeStyle(RGBA.fromHex("#00ff00"));
+        js.ctx.strokeStyle(color);
         js.ctx.strokeRect(box.tl(), box.size);
 
         js.ctx.strokeStyle(RGBA.fromHex("#0077ff"));
@@ -183,26 +183,20 @@ pub const Level = struct {
             .blocks = lib.Container(Block, 16).init(),
         };
 
-        {
-            var block = try level.blocks.addOne();
-            block.box = Box.init(v2.xy(0, -40), v2.xy(300, 10));
+        const blocksInit = [_]struct { f32, f32, f32, f32 }{
+            .{ 0, -40, 300, 10 },
+            .{ -30, -20, 40, 10 },
+            .{ -60, 0, 40, 10 },
+            .{ 0, 20, 100, 10 },
+            .{ -30, 30, 200, 10 },
+            .{ -40, 40, 300, 10 },
+        };
+
+        for (blocksInit) |vals| {
+            const block = try level.blocks.addOne();
+            block.*.box = game.Box.init(.{ vals[0], vals[1] }, .{ vals[2], vals[3] });
         }
-        {
-            var block = try level.blocks.addOne();
-            block.box = Box.init(v2.xy(-30, -20), v2.xy(40, 10));
-        }
-        {
-            var block = try level.blocks.addOne();
-            block.box = Box.init(v2.xy(0, 20), v2.xy(100, 10));
-        }
-        {
-            var block = try level.blocks.addOne();
-            block.box = Box.init(v2.xy(0, 30), v2.xy(200, 10));
-        }
-        {
-            var block = try level.blocks.addOne();
-            block.box = Box.init(v2.xy(0, 40), v2.xy(300, 10));
-        }
+
         return level;
     }
 };

@@ -1,0 +1,269 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      body {
+        margin: 0;
+        background: #000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+      canvas {
+        image-rendering: pixelated;
+        width: 960px;
+        height: 540px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c" width="320" height="180"></canvas>
+    <script>
+      const W = 320,
+        H = 180;
+      const canvas = document.getElementById("c");
+      const gl = canvas.getContext("webgl2");
+
+      // --- Textures ---
+      const colorData = new Uint8Array(W * H * 4);
+      const heightData = new Float32Array(W * H);
+
+      const colorTex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, colorTex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      const heightTex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, heightTex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      // --- Shaders ---
+      const vsSource = `#version 300 es
+in vec2 aPos;
+out vec2 vUv;
+void main() {
+  vUv = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+      const fsSource = `#version 300 es
+precision highp float;
+
+in vec2 vUv;
+out vec4 fragColor;
+
+uniform sampler2D uColor;
+uniform sampler2D uHeight;
+uniform vec2 uRes;
+
+#define MAX_LIGHTS 8
+uniform int uNumLights;
+uniform vec3 uLightPos[MAX_LIGHTS];
+uniform vec3 uLightColor[MAX_LIGHTS];
+uniform float uLightIntensity[MAX_LIGHTS];
+
+float getHeight(ivec2 p) {
+  if (p.x < 0 || p.x >= int(uRes.x) || p.y < 0 || p.y >= int(uRes.y)) return 0.0;
+  return texelFetch(uHeight, p, 0).r;
+}
+
+vec3 getNormal(ivec2 p) {
+  float l = getHeight(p + ivec2(-1, 0));
+  float r = getHeight(p + ivec2(1, 0));
+  float d = getHeight(p + ivec2(0, -1));
+  float u = getHeight(p + ivec2(0, 1));
+  return normalize(vec3(l - r, d - u, 2.0));
+}
+
+bool isOccluded(ivec2 px, vec3 lightPos) {
+  vec2 start = vec2(px);
+  vec2 end = lightPos.xy;
+  vec2 dir = end - start;
+  float dist = length(dir);
+  int steps = int(dist);
+  if (steps == 0) return false;
+  vec2 step = dir / float(steps);
+
+  float pz = getHeight(px);
+  for (int i = 1; i < steps; i++) {
+    vec2 samplePos = start + step * float(i);
+    ivec2 sp = ivec2(samplePos);
+    float h = getHeight(sp);
+    // interpolate expected ray height at this point
+    float t = float(i) / float(steps);
+    float rayZ = mix(pz, lightPos.z, t);
+    if (h > rayZ) return true;
+  }
+  return false;
+}
+
+void main() {
+  ivec2 px = ivec2(gl_FragCoord.xy);
+  vec4 col = texelFetch(uColor, px, 0);
+  if (col.a == 0.0) { fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+
+  float h = getHeight(px);
+  vec3 normal = getNormal(px);
+  vec3 pos = vec3(vec2(px), h);
+
+  vec3 totalLight = vec3(0.02); // ambient
+
+  for (int i = 0; i < MAX_LIGHTS; i++) {
+    if (i >= uNumLights) break;
+    vec3 lp = uLightPos[i];
+    vec3 lc = uLightColor[i];
+    float li = uLightIntensity[i];
+
+    vec3 toLight = lp - pos;
+    float d = length(toLight);
+    vec3 lightDir = toLight / d;
+
+    float ndotl = max(dot(normal, lightDir), 0.0);
+    float atten = li / (1.0 + d * 0.05 + d * d * 0.005);
+
+    if (!isOccluded(px, lp)) {
+      totalLight += lc * ndotl * atten;
+    }
+  }
+
+  fragColor = vec4(col.rgb * totalLight, 1.0);
+}`;
+
+      function compileShader(src, type) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+          console.error(gl.getShaderInfoLog(s));
+        }
+        return s;
+      }
+
+      const prog = gl.createProgram();
+      gl.attachShader(prog, compileShader(vsSource, gl.VERTEX_SHADER));
+      gl.attachShader(prog, compileShader(fsSource, gl.FRAGMENT_SHADER));
+      gl.linkProgram(prog);
+      gl.useProgram(prog);
+
+      // fullscreen quad
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const aPos = gl.getAttribLocation(prog, "aPos");
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+      // uniforms
+      const uColor = gl.getUniformLocation(prog, "uColor");
+      const uHeight = gl.getUniformLocation(prog, "uHeight");
+      const uRes = gl.getUniformLocation(prog, "uRes");
+      const uNumLights = gl.getUniformLocation(prog, "uNumLights");
+      const uLightPos = [];
+      const uLightColor = [];
+      const uLightIntensity = [];
+      for (let i = 0; i < 8; i++) {
+        uLightPos[i] = gl.getUniformLocation(prog, `uLightPos[${i}]`);
+        uLightColor[i] = gl.getUniformLocation(prog, `uLightColor[${i}]`);
+        uLightIntensity[i] = gl.getUniformLocation(prog, `uLightIntensity[${i}]`);
+      }
+
+      gl.uniform2f(uRes, W, H);
+      gl.uniform1i(uColor, 0);
+      gl.uniform1i(uHeight, 1);
+
+      // --- Immediate mode API ---
+      const lights = [];
+
+      function clear() {
+        colorData.fill(0);
+        heightData.fill(0);
+        lights.length = 0;
+      }
+
+      function drawPixel(x, y, z, r, g, b) {
+        x = Math.round(x);
+        y = Math.round(y);
+        if (x < 0 || x >= W || y < 0 || y >= H) return;
+        const i = y * W + x;
+        if (z >= heightData[i]) {
+          heightData[i] = z;
+          const j = i * 4;
+          colorData[j] = r;
+          colorData[j + 1] = g;
+          colorData[j + 2] = b;
+          colorData[j + 3] = 255;
+        }
+      }
+
+      function drawLight(x, y, z, r, g, b, intensity) {
+        lights.push({ x, y, z, r, g, b, intensity });
+      }
+
+      function flush() {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, colorTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, colorData);
+
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, heightTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, W, H, 0, gl.RED, gl.FLOAT, heightData);
+
+        gl.uniform1i(uNumLights, Math.min(lights.length, 8));
+        for (let i = 0; i < Math.min(lights.length, 8); i++) {
+          const l = lights[i];
+          gl.uniform3f(uLightPos[i], l.x, l.y, l.z);
+          gl.uniform3f(uLightColor[i], l.r, l.g, l.b);
+          gl.uniform1f(uLightIntensity[i], l.intensity);
+        }
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
+
+      // --- Demo scene ---
+      function drawRect(x, y, w, h, z, r, g, b) {
+        for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) drawPixel(x + dx, y + dy, z, r, g, b);
+      }
+
+      function frame(t) {
+        clear();
+
+        // floor
+        drawRect(0, 140, 320, 40, 9, 80, 80, 80);
+
+        // back wall
+        drawRect(0, 0, 320, 140, 0, 50, 50, 60);
+
+        // a pillar (raised from wall)
+        drawRect(80, 40, 20, 100, 10, 100, 90, 80);
+
+        // another pillar
+        drawRect(200, 40, 20, 100, 10, 100, 90, 80);
+
+        // a box on the floor (raised)
+        drawRect(130, 110, 30, 30, 8, 120, 60, 60);
+
+        // indent in the wall (recessed)
+        drawRect(140, 50, 40, 40, -5, 30, 30, 40);
+
+        // moving light
+        const lx = 160 + Math.sin(t * 0.001) * 100;
+        const ly = 90 + Math.cos(t * 0.0013) * 40;
+        drawLight(lx, ly, 20, 1.0, 0.9, 0.7, 300);
+
+        // static dim light
+        drawLight(50, 60, 15, 0.3, 0.5, 1.0, 150);
+
+        flush();
+        requestAnimationFrame(frame);
+      }
+
+      requestAnimationFrame(frame);
+    </script>
+  </body>
+</html>
