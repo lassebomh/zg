@@ -1,21 +1,11 @@
 const std = @import("std");
-const js = @import("../js/root.zig");
 
 const game = @import("./root.zig");
 const lib = @import("../lib/root.zig");
 const RGBA = lib.RGBA;
 const v2 = lib.v2;
 
-pub const Directions = packed struct {
-    tl: bool,
-    tc: bool,
-    tr: bool,
-    cr: bool,
-    br: bool,
-    bc: bool,
-    bl: bool,
-    cl: bool,
-};
+const Canvas = @import("../js/pixel.zig").Canvas;
 
 pub const Box = struct {
     position: v2.Value,
@@ -131,27 +121,8 @@ pub const Box = struct {
         this.position += this.vel;
     }
 
-    pub fn render(this: Box, prev: Box, color: RGBA, alpha: f32) void {
-        const box = this.lerp(prev, alpha);
-
-        js.ctx.save();
-        defer js.ctx.restore();
-
-        js.ctx.lineWidth(0.5);
-        js.ctx.strokeStyle(color);
-        js.ctx.strokeRect(box.tl(), box.size);
-
-        js.ctx.strokeStyle(RGBA.fromHex("#0077ff"));
-        js.ctx.beginPath();
-        js.ctx.moveTo(box.cc());
-        js.ctx.lineTo(box.cc() + box.vel * v2.fill(3));
-        js.ctx.stroke();
-
-        js.ctx.strokeStyle(RGBA.fromHex("#ff00ff"));
-        js.ctx.beginPath();
-        js.ctx.moveTo(box.cc());
-        js.ctx.lineTo(box.cc() + box.impact * v2.fill(3));
-        js.ctx.stroke();
+    pub fn render(this: Box, z: f32, color: RGBA) void {
+        Canvas.boxf(this.x_left(), this.y_top(), this.size[0], this.size[1], z, color);
     }
 };
 
@@ -160,12 +131,7 @@ pub const Block = struct {
     box: Box,
 
     pub fn render(this: *Block) void {
-        js.ctx.save();
-        defer js.ctx.restore();
-
-        js.ctx.lineWidth(0.5);
-        js.ctx.fillStyle(RGBA.fromHex("#666666"));
-        js.ctx.fillRect(this.box.tl(), this.box.size);
+        this.box.render(5, comptime RGBA.fromHex("#666666"));
     }
 };
 

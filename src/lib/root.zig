@@ -1,20 +1,20 @@
 const std = @import("std");
 
 pub const RGBA = extern struct {
-    r: u32,
-    g: u32,
-    b: u32,
-    alpha: u32,
+    r: u8,
+    g: u8,
+    b: u8,
+    alpha: u8,
 
-    pub fn fromHex(comptime hex: []const u8) RGBA {
+    pub fn fromHex(hex: []const u8) RGBA {
         var rgba = RGBA{
-            .r = std.fmt.parseUnsigned(u32, hex[1..3], 16) catch unreachable,
-            .g = std.fmt.parseUnsigned(u32, hex[3..5], 16) catch unreachable,
-            .b = std.fmt.parseUnsigned(u32, hex[5..7], 16) catch unreachable,
+            .r = std.fmt.parseUnsigned(u8, hex[1..3], 16) catch unreachable,
+            .g = std.fmt.parseUnsigned(u8, hex[3..5], 16) catch unreachable,
+            .b = std.fmt.parseUnsigned(u8, hex[5..7], 16) catch unreachable,
             .alpha = 255,
         };
         if (hex.len == 9) {
-            rgba.alpha = std.fmt.parseUnsigned(u32, hex[7..9], 16) catch unreachable;
+            rgba.alpha = std.fmt.parseUnsigned(u8, hex[7..9], 16) catch unreachable;
         }
         return rgba;
     }

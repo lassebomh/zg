@@ -1,5 +1,7 @@
 const std = @import("std");
-const js = @import("../js/root.zig");
+
+const Input = @import("../js/inputs.zig").Input;
+const debug = @import("../js/debug.zig");
 
 const game = @import("./root.zig");
 const lib = @import("../lib/root.zig");
@@ -58,7 +60,7 @@ pub const Avatar = struct {
         }
 
         var body_angle: f32 = std.math.atan2(-3, this.collision.vel[0]);
-        js.debug.log("{any}", .{body_angle});
+        debug.log("{any}", .{body_angle});
 
         if (this.inputs.lstick[1] > 0.1) {
             if (this.clockwise) {
@@ -77,17 +79,9 @@ pub const Avatar = struct {
         this.limb.head.update(g);
     }
 
-    pub fn render(this: *Avatar, prev: *Avatar, alpha: f32) void {
-        // js.ctx.beginPath();
-        // js.ctx.save();
-        // defer js.ctx.restore();
-        // js.ctx.strokeStyle(RGBA.fromHex("#ff0000"));
-        // js.ctx.lineWidth(6);
-        // js.ctx.moveTo(v2.lerp(prev.collision.cc(), this.collision.cc(), v2.fill(alpha)) + v2.xy(0, 0));
-        // js.ctx.lineTo(v2.lerp(prev.limb.head.cc(), this.limb.head.cc(), v2.fill(alpha)) + v2.xy(0, 0));
-        // js.ctx.stroke();
-        this.collision.render(prev.collision, RGBA.fromHex("#00ff00"), alpha);
-        this.limb.head.render(prev.limb.head, RGBA.fromHex("#ff0000"), alpha);
+    pub fn render(this: *Avatar) void {
+        this.collision.render(5, comptime RGBA.fromHex("#00ff00"));
+        this.limb.head.render(5, comptime RGBA.fromHex("#ff0000"));
     }
 };
 
@@ -95,11 +89,11 @@ pub const Player = struct {
     id: usize,
     peer_id: i32,
     avatar_id: ?usize,
-    input: js.inputs.Input,
+    input: Input,
 
     pub fn upsert_avatar(this: *Player, g: *game.State) *Avatar {
         const avatar_id = this.avatar_id orelse init: {
-            const avatar = g.avatars.addOne() catch |e| js.debug.fail(e);
+            const avatar = g.avatars.addOne() catch |e| debug.fail(e);
             avatar.* = Avatar.create(avatar.id, v2.xy(0, 0));
             this.avatar_id = avatar.id;
             break :init avatar.id;
