@@ -27,13 +27,27 @@ general:
 everything is in world coordinates.
 update state returns a camera.
 
---- wait:
+# important
 
-should all entities have a 'maybe update - always render' structure, instead of two methods?
+might solve issue with sun:
+
+- putting a pixel outside the screen will just slide it to the edge of the screen?
+
+- caching! Store a 'touched' value?
+
+- downscaled height maps could allow for fast collision checks
+
+# update + render + camera?
 
 ---
 
-flatten effects: make waves in the height map. could be a cool posteffect.
+maybe do an iterative light propagation:
+
+- every point with a light grows
+
+---
+
+# MONEYYYY: flatten effects: make waves in the height map. could be a cool posteffect.
 
 ---
 
