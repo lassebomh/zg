@@ -53,10 +53,14 @@ pub const State = struct {
             }
         }
 
-        Canvas.begin(camera_pos, screen / v2.fill(8));
+        Canvas.begin(camera_pos, screen / v2.fill(6));
         defer Canvas.flush();
 
-        Canvas.light_directional(.{ 1, 1, -1 }, comptime RGBA.fromHex("#ffffff"), 1.0);
+        Canvas.light_directional(
+            .{ 1, 1, -1 },
+            comptime RGBA.fromHex("#ffffff"),
+            1.0,
+        );
 
         Canvas.box(
             Canvas.render_x0(),

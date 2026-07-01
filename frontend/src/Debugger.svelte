@@ -226,6 +226,13 @@ float getHeight(ivec2 world) {
   if (tc.x < 0 || tc.x >= render_width || tc.y < 0 || tc.y >= render_height) return 0.0;
   return texelFetch(uHeight, tc, 0).r;
 }
+vec3 getNormal(ivec2 world) {
+  float l = getHeight(world + ivec2(-1, 0));
+  float r = getHeight(world + ivec2( 1, 0));
+  float d = getHeight(world + ivec2( 0,-1));
+  float u = getHeight(world + ivec2( 0, 1));
+  return normalize(vec3(l - r, d - u, 2.0));
+}
 
 bool isOccluded(ivec2 worldPx, float pz, vec3 lightPos) {
   vec2 start = vec2(worldPx);
@@ -270,7 +277,7 @@ bool isOccludedDirectional(ivec2 worldPx, float pz, vec3 lightDir) {
 void main() {
   ivec2 lightTexel = ivec2(gl_FragCoord.xy);
   ivec2 world = lightTexel + ivec2(light_x, light_y);
-
+  vec3 normal = getNormal(world);
   float h = getHeight(world);
 
   vec3 totalLight = vec3(0.02);
