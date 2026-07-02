@@ -7,7 +7,7 @@ const game = @import("./root.zig");
 const lib = @import("../lib/root.zig");
 const v2 = lib.v2;
 
-const Canvas = @import("../js/pixel.zig").Canvas;
+const px = @import("../js/pixel.zig");
 const RGBA = @import("../lib/root.zig").RGBA;
 
 pub const State = struct {
@@ -43,7 +43,10 @@ pub const State = struct {
         // update_boxes(&this.boxes);
     }
 
-    pub fn render(this: *State, screen: v2.Value, peer_id: i32) void {
+    pub fn render(this: *State, screen_width: usize, screen_height: usize, peer_id: i32) void {
+        // const w: usize = @trunc(screen[0]);
+        // const h: usize = @trunc(screen[1]);
+
         var camera_pos = v2.zero;
 
         for (this.players.items) |player| {
@@ -53,24 +56,31 @@ pub const State = struct {
             }
         }
 
-        Canvas.begin(camera_pos, screen / v2.fill(6));
-        defer Canvas.flush();
+        var camera_size: @Vector(2, i32) = .{
+            @intCast(screen_width),
+            @intCast(screen_height),
+        };
 
-        Canvas.light_directional(
+        camera_size /= @splat(@as(i32, 10));
+
+        px.camera.size = camera_size;
+
+        px.camera.pos = .{ -@divFloor(camera_size[0], 2), -@divFloor(camera_size[1], 2) };
+
+        px.begin();
+        defer px.flush();
+
+        px.Canvas.light_directional(
             .{ 1, 1, -1 },
-            comptime RGBA.fromHex("#ffffff"),
+            comptime RGBA.hex("#ffffff"),
             1.0,
         );
 
-        Canvas.box(
-            Canvas.render_x0(),
-            Canvas.render_y0(),
-            Canvas.render_width(),
-            Canvas.render_height(),
-            1,
-            comptime RGBA.fromHex("#222222"),
-        );
+        var cam_iter = px.camera.iter();
 
+        while ((&cam_iter).next()) |pos| {
+            px.put(pos, comptime RGBA.hex("#332211"));
+        }
         this.level.render();
 
         for (0..this.avatars.len) |avatar_i| {

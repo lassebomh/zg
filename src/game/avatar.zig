@@ -80,8 +80,8 @@ pub const Avatar = struct {
     }
 
     pub fn render(this: *Avatar) void {
-        this.collision.render(5, comptime RGBA.fromHex("#00ff00"));
-        this.limb.head.render(5, comptime RGBA.fromHex("#ff0000"));
+        this.collision.render(5, comptime RGBA.hex("#00ff00"));
+        this.limb.head.render(5, comptime RGBA.hex("#ff0000"));
     }
 };
 

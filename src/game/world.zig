@@ -5,7 +5,7 @@ const lib = @import("../lib/root.zig");
 const RGBA = lib.RGBA;
 const v2 = lib.v2;
 
-const Canvas = @import("../js/pixel.zig").Canvas;
+const px = @import("../js/pixel.zig");
 
 pub const Box = struct {
     position: v2.Value,
@@ -122,7 +122,17 @@ pub const Box = struct {
     }
 
     pub fn render(this: Box, z: f32, color: RGBA) void {
-        Canvas.boxf(this.x_left(), this.y_top(), this.size[0], this.size[1], z, color);
+        _ = z;
+        const box: lib.Box(i32) = .{
+            .pos = @trunc(this.tl()),
+            .size = @trunc(this.size),
+        };
+
+        var iter = box.iter();
+
+        while ((&iter).next()) |pos| {
+            px.put(pos, color);
+        }
     }
 };
 
@@ -131,7 +141,7 @@ pub const Block = struct {
     box: Box,
 
     pub fn render(this: *Block) void {
-        this.box.render(5, comptime RGBA.fromHex("#666666"));
+        this.box.render(5, comptime RGBA.hex("#666666"));
     }
 };
 

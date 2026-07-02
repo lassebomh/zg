@@ -6,15 +6,19 @@ pub const RGBA = extern struct {
     b: u8,
     alpha: u8,
 
-    pub fn fromHex(hex: []const u8) RGBA {
+    pub const RED: RGBA = .{ .r = 255, .g = 0, .b = 0, .alpha = 255 };
+    pub const GREEN: RGBA = .{ .r = 0, .g = 255, .b = 0, .alpha = 255 };
+    pub const BLUE: RGBA = .{ .r = 0, .g = 0, .b = 255, .alpha = 255 };
+
+    pub fn hex(chars: []const u8) RGBA {
         var rgba = RGBA{
-            .r = std.fmt.parseUnsigned(u8, hex[1..3], 16) catch unreachable,
-            .g = std.fmt.parseUnsigned(u8, hex[3..5], 16) catch unreachable,
-            .b = std.fmt.parseUnsigned(u8, hex[5..7], 16) catch unreachable,
+            .r = std.fmt.parseUnsigned(u8, chars[1..3], 16) catch unreachable,
+            .g = std.fmt.parseUnsigned(u8, chars[3..5], 16) catch unreachable,
+            .b = std.fmt.parseUnsigned(u8, chars[5..7], 16) catch unreachable,
             .alpha = 255,
         };
-        if (hex.len == 9) {
-            rgba.alpha = std.fmt.parseUnsigned(u8, hex[7..9], 16) catch unreachable;
+        if (chars.len == 9) {
+            rgba.alpha = std.fmt.parseUnsigned(u8, chars[7..9], 16) catch unreachable;
         }
         return rgba;
     }
@@ -158,84 +162,90 @@ pub const v3 = packed struct(u48) {
     }
 };
 
-pub const Box = struct {
-    position: v2.Value,
-    size: v2.Value,
+pub fn Box(T: anytype) type {
+    const T2: type = @Vector(2, T);
 
-    pub fn x_left(this: Box) f32 {
-        return this.position[0] - this.size[0] / 2;
-    }
-    pub fn x_right(this: Box) f32 {
-        return this.position[0] + this.size[0] / 2;
-    }
-    pub fn x_center(this: Box) f32 {
-        return this.position[0];
-    }
-    pub fn y_top(this: Box) f32 {
-        return this.position[1] - this.size[1] / 2;
-    }
-    pub fn y_bottom(this: Box) f32 {
-        return this.position[1] + this.size[1] / 2;
-    }
-    pub fn y_center(this: Box) f32 {
-        return this.position[1];
-    }
+    return struct {
+        const This = @This();
 
-    pub fn tl(this: Box) v2.Value {
-        return v2.xy(this.x_left(), this.y_top());
-    }
-    pub fn tc(this: Box) v2.Value {
-        return v2.xy(this.x_center(), this.y_top());
-    }
-    pub fn tr(this: Box) v2.Value {
-        return v2.xy(this.x_right(), this.y_top());
-    }
-    pub fn cr(this: Box) v2.Value {
-        return v2.xy(this.x_right(), this.y_center());
-    }
-    pub fn br(this: Box) v2.Value {
-        return v2.xy(this.x_right(), this.y_bottom());
-    }
-    pub fn bc(this: Box) v2.Value {
-        return v2.xy(this.x_center(), this.y_bottom());
-    }
-    pub fn bl(this: Box) v2.Value {
-        return v2.xy(this.x_left(), this.y_bottom());
-    }
-    pub fn cl(this: Box) v2.Value {
-        return v2.xy(this.x_left(), this.y_center());
-    }
+        pos: T2,
+        size: T2,
 
-    pub fn cc(this: Box) v2.Value {
-        return this.position;
-    }
+        pub fn x_left(this: Box) T {
+            return this.pos[0];
+        }
+        pub fn x_right(this: Box) T {
+            return this.pos[0] + this.size[0];
+        }
+        pub fn x_center(this: Box) T {
+            return this.pos[0];
+        }
+        pub fn y_top(this: Box) T {
+            return this.pos[1] + @divFloor(this.size[0], 2);
+        }
+        pub fn y_bottom(this: Box) T {
+            return this.pos[1] + this.size[1];
+        }
+        pub fn y_center(this: Box) T {
+            return this.pos[1] + @divFloor(this.size[1], 2);
+        }
 
-    pub fn lerp(this: Box, other: Box, alpha: f32) Box {
-        const a = v2.fill(alpha);
-        return Box{
-            .position = v2.lerp(other.position, this.position, a),
-            .size = v2.lerp(other.size, this.size, a),
-            .vel = v2.lerp(other.vel, this.vel, a),
-            .impact = v2.lerp(other.impact, this.impact, a),
+        pub fn tl(this: Box) T2 {
+            return .{ this.x_left(), this.y_top() };
+        }
+        pub fn tc(this: Box) T2 {
+            return .{ this.x_center(), this.y_top() };
+        }
+        pub fn tr(this: Box) T2 {
+            return .{ this.x_right(), this.y_top() };
+        }
+        pub fn cr(this: Box) T2 {
+            return .{ this.x_right(), this.y_center() };
+        }
+        pub fn br(this: Box) T2 {
+            return .{ this.x_right(), this.y_bottom() };
+        }
+        pub fn bc(this: Box) T2 {
+            return .{ this.x_center(), this.y_bottom() };
+        }
+        pub fn bl(this: Box) T2 {
+            return .{ this.x_left(), this.y_bottom() };
+        }
+        pub fn cl(this: Box) T2 {
+            return .{ this.x_left(), this.y_center() };
+        }
+
+        pub fn cc(this: Box) T2 {
+            return .{
+                this.x_center(),
+                this.y_center(),
+            };
+        }
+
+        const Iterator = struct {
+            pos: T2 = .{ 0, 0 },
+            size: T2,
+
+            pub fn next(this: *Iterator) ?T2 {
+                const pos = this.pos;
+                if (this.pos[0] < this.size[0]) {
+                    this.pos[0] += 1;
+                    return pos;
+                } else if (this.pos[1] < this.size[1]) {
+                    this.pos[1] += 1;
+                    this.pos[0] = 0;
+                    return pos;
+                } else {
+                    return null;
+                }
+            }
         };
-    }
 
-    pub fn right_distance_to(this: Box, other: Box) f32 {
-        return other.x_left() - this.x_right();
-    }
-
-    pub fn left_distance_to(this: Box, other: Box) f32 {
-        return this.x_left() - other.x_right();
-    }
-
-    pub fn top_distance_to(this: Box, other: Box) f32 {
-        return this.y_top() - other.y_bottom();
-    }
-
-    pub fn bottom_distance_to(this: Box, other: Box) f32 {
-        return other.y_top() - this.y_bottom();
-    }
-};
+        pub fn iter(this: This) Iterator {
+            return .{ .size = this.size };
+        }
+    };
+}
 
 pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
     const Error = error{OutOfMemory};
