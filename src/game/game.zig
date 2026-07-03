@@ -43,44 +43,47 @@ pub const State = struct {
         // update_boxes(&this.boxes);
     }
 
-    pub fn render(this: *State, screen_width: usize, screen_height: usize, peer_id: i32) void {
-        // const w: usize = @trunc(screen[0]);
-        // const h: usize = @trunc(screen[1]);
+    pub fn render(this: *State, screen: @Vector(2, i32), peer_id: i32) void {
+        px.camera.size = screen;
+        px.camera.size /= @splat(10);
 
-        var camera_pos = v2.zero;
+        px.camera.pos = v2.zero;
 
         for (this.players.items) |player| {
             if (player.peer_id == peer_id) {
                 const avatar = this.avatars.get(player.avatar_id orelse break).?;
-                camera_pos = avatar.collision.position;
+                px.camera.pos = @floor(avatar.collision.cc());
             }
         }
 
-        var camera_size: @Vector(2, i32) = .{
-            @intCast(screen_width),
-            @intCast(screen_height),
-        };
-
-        camera_size /= @splat(@as(i32, 10));
-
-        px.camera.size = camera_size;
-
-        px.camera.pos = .{ -@divFloor(camera_size[0], 2), -@divFloor(camera_size[1], 2) };
+        px.camera.pos -= .{ @divFloor(px.camera.size[0], 2), @divFloor(px.camera.size[1], 2) };
 
         px.begin();
         defer px.flush();
 
-        px.Canvas.light_directional(
-            .{ 1, 1, -1 },
-            comptime RGBA.hex("#ffffff"),
-            1.0,
-        );
+        // px.add_light(.{ .point = .{
+        //     .color = RGBA.hex("#ffffff"),
+        //     .pos = .{ 0, 0, 50 },
+        //     .intensity = 500,
+        // } });
 
-        var cam_iter = px.camera.iter();
+        px.add_light(.{ .directional = .{
+            .color = RGBA.hex("#ffffff"),
+            .dir = .{ -0.1, 0.1, -1 },
+            .intensity = 1,
+        } });
 
-        while ((&cam_iter).next()) |pos| {
-            px.put(pos, comptime RGBA.hex("#332211"));
-        }
+        // px.Canvas.light_directional(
+        //     .{ 1, 1, -1 },
+        //     comptime RGBA.hex("#ffffff"),
+        //     1.0,
+        // );
+
+        // var cam_iter = px.camera.iter();
+        // while ((&cam_iter).next()) |pos| {
+        //     px.put(pos, comptime RGBA.hex("#332211"));
+        // }
+
         this.level.render();
 
         for (0..this.avatars.len) |avatar_i| {

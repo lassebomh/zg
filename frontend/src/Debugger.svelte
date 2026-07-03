@@ -146,8 +146,6 @@
       for (const entry of entries) {
         gameWidth = entry.contentBoxSize[0].inlineSize;
         gameHeight = entry.contentBoxSize[0].blockSize;
-        gameCanvas.width = gameWidth;
-        gameCanvas.height = gameHeight;
       }
     });
 

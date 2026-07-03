@@ -171,78 +171,98 @@ pub fn Box(T: anytype) type {
         pos: T2,
         size: T2,
 
-        pub fn x_left(this: Box) T {
+        pub fn x_left(this: This) T {
             return this.pos[0];
         }
-        pub fn x_right(this: Box) T {
+        pub fn x_right(this: This) T {
             return this.pos[0] + this.size[0];
         }
-        pub fn x_center(this: Box) T {
-            return this.pos[0];
+        pub fn x_center(this: This) T {
+            return this.pos[0] + @divFloor(this.size[0], 2);
         }
-        pub fn y_top(this: Box) T {
-            return this.pos[1] + @divFloor(this.size[0], 2);
+        pub fn y_top(this: This) T {
+            return this.pos[1];
         }
-        pub fn y_bottom(this: Box) T {
+        pub fn y_bottom(this: This) T {
             return this.pos[1] + this.size[1];
         }
-        pub fn y_center(this: Box) T {
+        pub fn y_center(this: This) T {
             return this.pos[1] + @divFloor(this.size[1], 2);
         }
-
-        pub fn tl(this: Box) T2 {
+        pub fn tl(this: This) T2 {
             return .{ this.x_left(), this.y_top() };
         }
-        pub fn tc(this: Box) T2 {
+        pub fn tc(this: This) T2 {
             return .{ this.x_center(), this.y_top() };
         }
-        pub fn tr(this: Box) T2 {
+        pub fn tr(this: This) T2 {
             return .{ this.x_right(), this.y_top() };
         }
-        pub fn cr(this: Box) T2 {
+        pub fn cr(this: This) T2 {
             return .{ this.x_right(), this.y_center() };
         }
-        pub fn br(this: Box) T2 {
+        pub fn br(this: This) T2 {
             return .{ this.x_right(), this.y_bottom() };
         }
-        pub fn bc(this: Box) T2 {
+        pub fn bc(this: This) T2 {
             return .{ this.x_center(), this.y_bottom() };
         }
-        pub fn bl(this: Box) T2 {
+        pub fn bl(this: This) T2 {
             return .{ this.x_left(), this.y_bottom() };
         }
-        pub fn cl(this: Box) T2 {
+        pub fn cl(this: This) T2 {
             return .{ this.x_left(), this.y_center() };
         }
 
-        pub fn cc(this: Box) T2 {
+        pub fn cc(this: This) T2 {
             return .{
                 this.x_center(),
                 this.y_center(),
             };
         }
+        pub fn overlap(this: This, other: This) ?This {
+            const left = @max(this.x_left(), other.x_left());
+            const right = @min(this.x_right(), other.x_right());
+            const top = @max(this.y_top(), other.y_top());
+            const bottom = @min(this.y_bottom(), other.y_bottom());
 
+            if (left >= right or top >= bottom) return null;
+
+            const pos = T2{ left, top };
+            const size = T2{ right - left, bottom - top };
+
+            return .{ .pos = pos, .size = size };
+        }
         const Iterator = struct {
-            pos: T2 = .{ 0, 0 },
-            size: T2,
+            x: T,
+            y: T,
+            x_start: T,
+            x_end: T,
+            y_end: T,
 
             pub fn next(this: *Iterator) ?T2 {
-                const pos = this.pos;
-                if (this.pos[0] < this.size[0]) {
-                    this.pos[0] += 1;
-                    return pos;
-                } else if (this.pos[1] < this.size[1]) {
-                    this.pos[1] += 1;
-                    this.pos[0] = 0;
-                    return pos;
-                } else {
-                    return null;
+                if (this.y >= this.y_end) return null;
+
+                const result = T2{ this.x, this.y };
+
+                this.x += 1;
+                if (this.x >= this.x_end) {
+                    this.x = this.x_start;
+                    this.y += 1;
                 }
+
+                return result;
             }
         };
 
         pub fn iter(this: This) Iterator {
-            return .{ .size = this.size };
+            return .{
+                .x = this.pos[0],
+                .y = this.pos[1],
+                .x_start = this.pos[0],
+                .x_end = this.pos[0] + this.size[0],
+                .y_end = this.pos[1] + this.size[1],
+            };
         }
     };
 }

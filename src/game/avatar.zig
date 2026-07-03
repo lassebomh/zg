@@ -60,7 +60,6 @@ pub const Avatar = struct {
         }
 
         var body_angle: f32 = std.math.atan2(-3, this.collision.vel[0]);
-        debug.log("{any}", .{body_angle});
 
         if (this.inputs.lstick[1] > 0.1) {
             if (this.clockwise) {

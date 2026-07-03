@@ -11,8 +11,6 @@ const v3 = @import("../lib/root.zig").v3;
 const lib = @import("../lib/root.zig");
 const RGBA = @import("../lib/root.zig").RGBA;
 
-const MAX_LIGHTS = 8;
-
 fn Texture2D(T: type) type {
     return struct {
         const This = @This();
@@ -33,7 +31,6 @@ fn Texture2D(T: type) type {
             this.width = new_width;
             this.height = new_height;
             this.data = try allocator.alloc(T, this.width * this.height);
-            this.clear();
         }
 
         pub fn clear(this: *This) void {
@@ -46,27 +43,36 @@ fn Texture2D(T: type) type {
     };
 }
 
-// pub fn index(this: *This, x: usize, y: usize) usize {
-//     return x + this.width * y;
-// }
-
-// pub fn get(this: *This, x: usize, y: usize) T {
-//     return this.get(x, y);
-// }
-
-// pub fn row(this: *This, y: usize) []T {
-//     return this.data[this.index(0, y)..this.index(0, y + 1)];
-// }
-const Light = extern struct {
-    mode: i32,
-    intensity: f32,
-    spot_cutoff_rads: f32,
-    pos: [3]f32,
-    target: [3]f32,
-    color: [3]f32,
+const Light = union(enum) {
+    point: struct {
+        pos: @Vector(3, f32),
+        color: RGBA,
+        intensity: f32,
+    },
+    directional: struct {
+        dir: @Vector(3, f32),
+        color: RGBA,
+        intensity: f32,
+    },
+    spot: struct {
+        pos: @Vector(3, f32),
+        target: @Vector(3, f32),
+        // Maximum angle of light dispersion from its direction whose upper bound is Math.PI/2.
+        angle: f32,
+        // Percent of the spotlight cone that is attenuated due to penumbra. Value range is [0,1].
+        penumbra: f32,
+        color: RGBA,
+        intensity: f32,
+    },
 };
 
+var lights: std.ArrayList(Light) = .empty;
+
 pub var image: Texture2D(RGBA) = .empty;
+
+pub var colors: Texture2D(RGBA) = .empty;
+pub var heights: Texture2D(f32) = .empty;
+pub var normals: Texture2D(@Vector(3, f32)) = .empty;
 
 export fn js_get_image_ptr() [*]RGBA {
     return image.data.ptr;
@@ -86,86 +92,122 @@ pub fn put(pos: @Vector(2, i32), color: RGBA) void {
         return;
     }
     const i: usize = @intCast(rel[0] + rel[1] * camera.size[0]);
-    image.data[i] = color;
+    colors.data[i] = color;
+    heights.data[i] = 1;
+    normals.data[i] = .{ 0, 0, 1 };
 }
+
+pub fn add_light(light: Light) void {
+    const new_light = (&lights).addOne(wal) catch |e| debug.fail(e);
+    new_light.* = light;
+}
+
 pub fn begin() void {
     const width: usize = @intCast(camera.size[0]);
     const height: usize = @intCast(camera.size[1]);
     if (width != image.width or height != image.height) {
-        image.resize(std.heap.wasm_allocator, width, height) catch |e| debug.fail(e);
+        image.resize(wal, width, height) catch |e| debug.fail(e);
+        colors.resize(wal, width, height) catch |e| debug.fail(e);
+        heights.resize(wal, width, height) catch |e| debug.fail(e);
+        normals.resize(wal, width, height) catch |e| debug.fail(e);
     } else {
         image.clear();
+        colors.clear();
+        heights.clear();
+        normals.clear();
     }
+    lights.clearRetainingCapacity();
+}
+pub fn dot3(a: @Vector(3, f32), b: @Vector(3, f32)) f32 {
+    return @reduce(.Add, a * b);
 }
 
+pub fn normalize3(v: @Vector(3, f32)) @Vector(3, f32) {
+    const len = @sqrt(dot3(v, v));
+    if (len < 0.0001) return .{ 0, 0, 0 };
+    return v / @as(@Vector(3, f32), @splat(len));
+}
 pub fn flush() void {
+    var iter = camera.iter();
+
+    for (0..image.data.len) |i| {
+        const base_color = colors.data[i];
+        const pos = (&iter).next().?;
+        const pos3d: @Vector(3, f32) = .{
+            @floatFromInt(pos[0]),
+            @floatFromInt(pos[1]),
+            heights.data[i],
+        };
+        const normal = normals.data[i];
+
+        var total_r: f32 = 0;
+        var total_g: f32 = 0;
+        var total_b: f32 = 0;
+
+        for (lights.items) |light| {
+            var light_dir: @Vector(3, f32) = undefined;
+            var attenuation: f32 = 1.0;
+            var light_color: RGBA = undefined;
+            var intensity: f32 = undefined;
+
+            switch (light) {
+                .point => |p| {
+                    const diff = p.pos - pos3d;
+                    const dist_sq = dot3(diff, diff);
+                    const dist = @sqrt(dist_sq);
+                    if (dist < 0.0001) {
+                        light_dir = .{ 0, 0, 1 };
+                    } else {
+                        light_dir = diff / @as(@Vector(3, f32), @splat(dist));
+                    }
+                    attenuation = 1.0 / (1.0 + dist_sq);
+                    light_color = p.color;
+                    intensity = p.intensity;
+                },
+                .directional => |d| {
+                    light_dir = normalize3(d.dir * @as(@Vector(3, f32), @splat(-1)));
+                    attenuation = 1.0;
+                    light_color = d.color;
+                    intensity = d.intensity;
+                },
+                .spot => |s| {
+                    const diff = s.pos - pos3d;
+                    const dist_sq = dot3(diff, diff);
+                    const dist = @sqrt(dist_sq);
+                    if (dist < 0.0001) {
+                        light_dir = .{ 0, 0, 1 };
+                    } else {
+                        light_dir = diff / @as(@Vector(3, f32), @splat(dist));
+                    }
+                    const spot_dir = normalize3(s.target - s.pos);
+                    const cos_angle = dot3(spot_dir, light_dir * @as(@Vector(3, f32), @splat(-1)));
+                    const cos_outer = @cos(s.angle);
+                    const cos_inner = @cos(s.angle * (1.0 - s.penumbra));
+                    if (cos_angle < cos_outer) {
+                        continue;
+                    }
+                    const spot_effect = std.math.clamp((cos_angle - cos_outer) / @max(cos_inner - cos_outer, 0.0001), 0.0, 1.0);
+                    attenuation = spot_effect / (1.0 + dist_sq);
+                    light_color = s.color;
+                    intensity = s.intensity;
+                },
+            }
+
+            const ndotl = @max(dot3(normal, light_dir), 0.0);
+            const contribution = ndotl * attenuation * intensity;
+
+            total_r += @as(f32, @floatFromInt(light_color.r)) / 255.0 * contribution;
+            total_g += @as(f32, @floatFromInt(light_color.g)) / 255.0 * contribution;
+            total_b += @as(f32, @floatFromInt(light_color.b)) / 255.0 * contribution;
+        }
+
+        image.data[i] = .{
+            .r = @intFromFloat(@min(@as(f32, @floatFromInt(base_color.r)) * total_r, 255)),
+            .g = @intFromFloat(@min(@as(f32, @floatFromInt(base_color.g)) * total_g, 255)),
+            .b = @intFromFloat(@min(@as(f32, @floatFromInt(base_color.b)) * total_b, 255)),
+            .alpha = base_color.alpha,
+        };
+    }
+
     js_flush_canvas();
 }
-
-pub const Canvas = struct {
-    pub fn pixel(px: i32, py: i32, z: f32, color: RGBA) void {
-        _ = px;
-        _ = py;
-        _ = z;
-        _ = color;
-    }
-    pub fn box(x: anytype, y: anytype, w: anytype, h: anytype, z: f32, color: RGBA) void {
-        const x0: i32 = @intCast(x);
-        const y0: i32 = @intCast(y);
-        const x1: i32 = @intCast(x + w);
-        const y1: i32 = @intCast(y + h);
-
-        var py = y0;
-        while (py < y1) : (py += 1) {
-            var px = x0;
-            while (px < x1) : (px += 1) {
-                Canvas.pixel(px, py, z, color);
-            }
-        }
-    }
-    pub fn boxf(x: f32, y: f32, w: f32, h: f32, z: f32, color: RGBA) void {
-        const x0: i32 = @trunc(x);
-        const y0: i32 = @trunc(y);
-        const x1: i32 = @trunc(x + w);
-        const y1: i32 = @trunc(y + h);
-
-        var py = y0;
-        while (py < y1) : (py += 1) {
-            var px = x0;
-            while (px < x1) : (px += 1) {
-                Canvas.pixel(px, py, z, color);
-            }
-        }
-    }
-
-    pub fn light_point(pos: v3.Value, color: RGBA, intensity: f32) void {
-        _ = pos;
-        _ = color;
-        _ = intensity;
-    }
-
-    pub fn light_directional(direction: v3.Value, color: RGBA, intensity: f32) void {
-        _ = direction;
-        _ = color;
-        _ = intensity;
-    }
-
-    pub fn render_x0() i32 {
-        return 0;
-    }
-    pub fn render_x1() i32 {
-        return 1;
-    }
-    pub fn render_y0() i32 {
-        return 0;
-    }
-    pub fn render_y1() i32 {
-        return 1;
-    }
-    pub fn render_width() i32 {
-        return 1;
-    }
-    pub fn render_height() i32 {
-        return 1;
-    }
-};

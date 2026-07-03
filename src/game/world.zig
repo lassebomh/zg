@@ -124,8 +124,8 @@ pub const Box = struct {
     pub fn render(this: Box, z: f32, color: RGBA) void {
         _ = z;
         const box: lib.Box(i32) = .{
-            .pos = @trunc(this.tl()),
-            .size = @trunc(this.size),
+            .pos = @floor(this.tl()),
+            .size = @floor(this.size),
         };
 
         var iter = box.iter();
