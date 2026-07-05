@@ -1,46 +1,29 @@
 <script lang="ts" module>
+  import { persistent } from "./lib/storage";
+  import { init } from "./wasm";
+
   let sendCanvasCommands:
     | ((commandsTypesPtr: number, commandsArgsPtr: number, commandsLen: number) => void)
     | undefined;
 
-  const instance = await init({
-    env: {
-      jsLogStr(ptr: number, length: number) {
-        const buffer = (instance.exports.memory as WebAssembly.Memory).buffer;
-        const dec = new TextDecoder();
-        const chars = new Uint8Array(buffer, ptr, length);
-        console.log(dec.decode(chars));
-      },
-      jsClear() {
-        console.clear();
-      },
-      jsFlushCommands(commandsTypesPtr: number, commandsArgsPtr: number, commandsLen: number) {
-        sendCanvasCommands?.(commandsTypesPtr, commandsArgsPtr, commandsLen);
-      },
+  const wasm = await init({
+    js_log_str(ptr, length) {
+      const dec = new TextDecoder();
+      const chars = new Uint8Array(wasm.memory.buffer, ptr, length);
+      console.log(dec.decode(chars));
+    },
+    js_clear() {
+      console.clear();
+    },
+    flush_commands(commandsTypesPtr, commandsArgsPtr, commandsLen) {
+      sendCanvasCommands?.(commandsTypesPtr, commandsArgsPtr, commandsLen);
     },
   });
 
-  const {
-    memory,
-    jsRenderTick,
-    jsPullInputBuffer,
-    jsGetInputBufferPtr,
-    jsGetPeerInputsPtr,
-    jsGetPeerInputsLen,
-    ...unused
-  } = instance.exports as any;
-  const unusedNames = Object.keys(unused);
-  if (unusedNames.length) throw new Error(`Unused export(s): ${unusedNames.join(", ")}`);
-
   function flushInputBuffer(tick: number, buffer: ArrayBuffer) {
-    const inputBytes = new Uint8Array(buffer);
-    const memoryBuffer = new Uint8Array(
-      (instance.exports.memory as WebAssembly.Memory).buffer,
-      jsGetInputBufferPtr(),
-      inputBytes.byteLength,
-    );
-    memoryBuffer.set(inputBytes);
-    jsPullInputBuffer(tick);
+    const memoryBuffer = new Uint8Array(wasm.memory.buffer, wasm.jsGetInputBufferPtr(), buffer.byteLength);
+    memoryBuffer.set(new Uint8Array(buffer));
+    wasm.jsPullInputBuffer(tick);
   }
 
   type UIState = {
@@ -75,10 +58,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { attachCanvas } from "./canvas";
-  import init from "./wasm/main.wasm?init";
-  import { abortSignal, assert, now } from "./lib/utils.js";
+  import { abortSignal, now } from "./lib/utils.js";
   import { createInputProxy, InputByteLength, inputControl } from "./inputs";
-  import { persistent } from "./storage";
 
   const PLAYER_COLORS = ["#ef4444", "#3b9eed", "#45b358", "#ebc934"];
 
@@ -119,7 +100,6 @@
 
     for (const inputSlice of save.inputs) {
       const inputsCount = inputSlice.byteLength / InputByteLength;
-      assert(inputsCount === Math.floor(inputsCount), "Invalid inputs size");
       for (let i = 0; i < inputsCount; i++) {
         const inputBuffer = inputSlice.slice(i * InputByteLength, (i + 1) * InputByteLength);
         flushInputBuffer(i, inputBuffer);
@@ -150,11 +130,10 @@
 
       for (let i = 0; i < 4; i++) {
         const peer = i + 1;
-        const inputsPtr = jsGetPeerInputsPtr(peer);
-        const inputsLen = jsGetPeerInputsLen(peer);
+        const inputsPtr = wasm.jsGetPeerInputsPtr(peer);
+        const inputsLen = wasm.jsGetPeerInputsLen(peer);
         if (inputsLen === 0) continue;
-        const memory = instance.exports.memory as WebAssembly.Memory;
-        save.inputs.push(memory.buffer.slice(inputsPtr, inputsPtr + inputsLen * InputByteLength));
+        save.inputs.push(wasm.memory.buffer.slice(inputsPtr, inputsPtr + inputsLen * InputByteLength));
       }
       await saveStore.set(save);
     }, 1000);
@@ -192,7 +171,7 @@
 
       if (ui.playheadTick < 0) ui.playheadTick = 0;
 
-      jsRenderTick(tick, alpha, gameWidth, gameHeight, ui.currentPeerId);
+      wasm.jsRenderTick(tick, alpha, gameWidth, gameHeight, ui.currentPeerId);
       renderTracks();
       frameRequest = requestAnimationFrame(render);
     }
@@ -208,8 +187,7 @@
     });
 
     sendCanvasCommands = (commandsTypesPtr, commandsArgsPtr, commandsLen) => {
-      const buffer = (instance.exports.memory as WebAssembly.Memory).buffer;
-      gameCanvasController.send(buffer, commandsTypesPtr, commandsArgsPtr, commandsLen);
+      gameCanvasController.send(wasm.memory.buffer, commandsTypesPtr, commandsArgsPtr, commandsLen);
     };
 
     const tracksCanvasController = attachCanvas({
@@ -281,13 +259,11 @@
           tracksCtx.stroke();
         } else {
           // Minor tick line
-          // tracksCtx.setLineDash([2, 2]);
           tracksCtx.lineWidth = dpr;
           tracksCtx.beginPath();
           tracksCtx.moveTo(x, h);
           tracksCtx.lineTo(x, h - h / 8);
           tracksCtx.stroke();
-          // tracksCtx.setLineDash([]);
         }
       }
 
@@ -390,10 +366,9 @@
   function stopAnyPlayback() {
     ui.playing = 0;
     temp.recording = false;
-    // if (!ui.loopEnabled){
-    //   ui.playheadTick = (ui.viewEnd + ui.viewStart) / 2;
-    // }
-    if (flushInputBufferInterval !== undefined) clearInterval(flushInputBufferInterval);
+    if (flushInputBufferInterval !== undefined) {
+      clearInterval(flushInputBufferInterval);
+    }
   }
 
   function recordButton(button: HTMLButtonElement) {
@@ -413,7 +388,6 @@
         flushInputBufferInterval = setInterval(() => {
           inputProxy.peer_id = ui.currentPeerId;
           flushInputBuffer(tick, inputBuffer);
-          // send inputs at double the tick rate just to be safe
         }, TICK_RATE);
 
         button.addEventListener("click", (e) => (e.stopPropagation(), abort()), { signal, capture: true });

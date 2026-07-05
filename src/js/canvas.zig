@@ -2,7 +2,7 @@ const std = @import("std");
 
 const RGBA = @import("../lib/root.zig").RGBA;
 
-extern fn jsFlushCommands(commandsTypesPtr: *[commandsCap]CommandType, commandsArgsPtr: *[commandsCap][7]f32, commandsLen: u8) void;
+extern fn flush_commands(commandsTypesPtr: *[commandsCap]CommandType, commandsArgsPtr: *[commandsCap][7]f32, commandsLen: u8) void;
 
 const CommandType = enum(i32) {
     none,
@@ -44,7 +44,7 @@ var commandsTypes: [commandsCap]CommandType = undefined;
 
 pub fn flush() void {
     if (commandsLen == 0) return;
-    jsFlushCommands(&commandsTypes, &commandsArgs, commandsLen);
+    flush_commands(&commandsTypes, &commandsArgs, commandsLen);
     commandsLen = 0;
     commandsArgs = std.mem.zeroes(@TypeOf(commandsArgs));
     commandsTypes = std.mem.zeroes(@TypeOf(commandsTypes));

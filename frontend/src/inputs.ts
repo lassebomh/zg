@@ -1,13 +1,5 @@
-import {
-  createInputProxy,
-  InputByteLength,
-  InputLayout,
-  type InputView,
-} from "./generated/bindings";
+import { createInputProxy, InputByteLength, InputLayout, type InputView } from "./wasm/generated/bindings";
 
-// The struct layout and DataView proxy are generated from the Zig `Input`
-// struct (src/js/inputs.zig) by `zig build` into src/generated/. This module
-// only adds the hand-written DOM event wiring on top of those bindings.
 export { createInputProxy, InputByteLength, InputLayout };
 export type { InputView };
 
