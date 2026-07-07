@@ -83,3 +83,78 @@ pub const State = struct {
         return state;
     }
 };
+
+const vertexSource =
+    \\#version 300 es
+    \\in vec2 position;
+    \\out vec2 vUV;
+    \\void main() {
+    \\  vUV = position * 0.5 + 0.5;
+    \\  gl_Position = vec4(position, 0.0, 1.0);
+    \\}
+;
+
+const fragmentSource =
+    \\#version 300 es
+    \\precision mediump float;
+    \\in vec2 vUV;
+    \\out vec4 fragColor;
+    \\
+    \\vec3 hsv2rgb(float h, float s, float v) {
+    \\  vec3 k = mod(vec3(5.0, 3.0, 1.0) + h * 6.0, 6.0);
+    \\  return v - v * s * max(min(min(k, 4.0 - k), 1.0), 0.0);
+    \\}
+    \\
+    \\void main() {
+    \\  fragColor = vec4(hsv2rgb(vUV.y, 1.0, 1.0), 1.0);
+    \\}
+;
+
+const gl = @import("../js/wgl2.zig");
+
+pub const Presenter = struct {
+    const This = @This();
+
+    program: *anyopaque,
+    vao: *anyopaque,
+    uTime: *anyopaque,
+    t: i32,
+
+    pub fn create() This {
+        const program = gl.createProgram();
+        const vs = gl.createShader(gl.GLEnum_Shader.VERTEX_SHADER);
+        gl.shaderSource(vs, vertexSource);
+        gl.compileShader(vs);
+        gl.attachShader(program, vs);
+
+        const fs = gl.createShader(gl.GLEnum_Shader.FRAGMENT_SHADER);
+        gl.shaderSource(fs, fragmentSource);
+        gl.compileShader(fs);
+        gl.attachShader(program, fs);
+
+        gl.linkProgram(program);
+
+        const vao = gl.createVertexArray();
+        gl.bindVertexArray(vao);
+
+        const buffer = gl.createBuffer();
+        gl.bindBuffer(.ARRAY_BUFFER, buffer);
+        gl.bufferData(.ARRAY_BUFFER, .{
+            -1, -1, 1, -1, -1, 1,
+            -1, 1,  1, -1, 1,  1,
+        }, .STATIC_DRAW);
+
+        const loc = gl.getAttribLocation(program, "position");
+        gl.enableVertexAttribArray(loc);
+        gl.vertexAttribPointer(loc, 2, .FLOAT, false, 0, 0);
+
+        const uTime = gl.getUniformLocation(program, "uTime");
+
+        return .{
+            .t = 0,
+            .program = program,
+            .vao = vao,
+            .uTime = uTime,
+        };
+    }
+};

@@ -1,12 +1,77 @@
 <script lang="ts" module>
   import { persistent } from "./lib/storage";
-  import { init } from "./wasm";
+  import { init, opaque } from "./wasm";
+
+  let gl!: WebGL2RenderingContext;
 
   let sendCanvasCommands:
     | ((commandsTypesPtr: number, commandsArgsPtr: number, commandsLen: number) => void)
     | undefined;
 
+  function readString(ptr: number, len: number) {
+    const dec = new TextDecoder();
+    const chars = new Uint8Array(wasm.memory.buffer, ptr, len);
+    return dec.decode(chars);
+  }
+
   const wasm = await init({
+    createShader(shaderType) {
+      const shader = gl.createShader(shaderType) ?? fail();
+      return opaque.create(shader);
+    },
+    _shaderSource(shader, sourcePtr, sourceLen) {
+      gl.shaderSource(opaque.get(shader), readString(sourcePtr, sourceLen));
+    },
+    compileShader(shader) {
+      const s = opaque.get(shader);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        throw new Error(gl.getShaderInfoLog(shader)!);
+      }
+    },
+    attachShader(program, shader) {
+      gl.attachShader(opaque.get(program), opaque.get(shader));
+    },
+    bindBuffer(target, buffer) {
+      gl.bindBuffer(target, opaque.get(buffer));
+    },
+    bindVertexArray(vao) {
+      gl.bindVertexArray(opaque.get(vao));
+    },
+    _bufferData(target, dataPtr, dataLen, usage) {
+      gl.bufferData(target, new Float32Array(wasm.memory.buffer, dataPtr, dataLen), usage);
+    },
+    createBuffer() {
+      return opaque.create(gl.createBuffer());
+    },
+    createProgram() {
+      return opaque.create(gl.createProgram());
+    },
+    createVertexArray() {
+      return opaque.create(gl.createVertexArray());
+    },
+    drawArrays(mode, first, count) {
+      gl.drawArrays(mode, first, count);
+    },
+    enableVertexAttribArray(attribLocation) {
+      gl.enableVertexAttribArray(attribLocation);
+    },
+    _getAttribLocation(program, namePtr, nameLen) {
+      return gl.getAttribLocation(opaque.get(program), readString(namePtr, nameLen));
+    },
+    linkProgram(program) {
+      gl.linkProgram(opaque.get(program));
+    },
+    useProgram(program) {
+      gl.useProgram(opaque.get(program));
+    },
+    _vertexAttribPointer(index, size, type, normalized, stride, offset) {
+      gl.vertexAttribPointer(index, size, type, normalized != 0, stride, offset);
+    },
+    _getUniformLocation(program, namePtr, nameLen) {
+      const name = readString(namePtr, nameLen);
+      return opaque.create(gl.getUniformLocation(program, name) ?? fail());
+    },
     js_log_str(ptr, length) {
       const dec = new TextDecoder();
       const chars = new Uint8Array(wasm.memory.buffer, ptr, length);
@@ -58,7 +123,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { attachCanvas } from "./canvas";
-  import { abortSignal, now } from "./lib/utils.js";
+  import { abortSignal, fail, now } from "./lib/utils.js";
   import { createInputProxy, InputByteLength, inputControl } from "./inputs";
 
   const PLAYER_COLORS = ["#ef4444", "#3b9eed", "#45b358", "#ebc934"];
