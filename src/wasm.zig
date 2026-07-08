@@ -2,7 +2,8 @@ const std = @import("std");
 const lib = @import("./lib/root.zig");
 const v2 = lib.v2;
 
-const js = @import("./js/root.zig");
+const Input = @import("./js/inputs.zig").Input;
+const debug = @import("./js/debug.zig");
 const game = @import("./game/root.zig");
 
 const wal = std.heap.wasm_allocator;
@@ -10,20 +11,22 @@ const ArrayList = std.ArrayList;
 
 var states: ArrayList(game.State) = .empty;
 
-var peers_inputs: [4]ArrayList(js.inputs.Input) = .{
+var peers_inputs: [4]ArrayList(Input) = .{
     .empty, // peer 1
     .empty, // peer 2
     .empty, // peer 3
     .empty, // peer 4
 };
 
-var input_buffer: js.inputs.Input = std.mem.zeroes(js.inputs.Input);
+var input_buffer: Input = std.mem.zeroes(Input);
 
-export fn jsGetInputBufferPtr() *js.inputs.Input {
+var renderer: ?game.Render = null;
+
+export fn jsGetInputBufferPtr() *Input {
     return &input_buffer;
 }
 
-export fn jsGetPeerInputsPtr(peer_id: i32) [*]js.inputs.Input {
+export fn jsGetPeerInputsPtr(peer_id: i32) [*]Input {
     return peers_inputs[@intCast(peer_id - 1)].items.ptr;
 }
 export fn jsGetPeerInputsLen(peer_id: i32) usize {
@@ -36,14 +39,18 @@ export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height:
         @floatFromInt(screen_height),
     };
 
-    render(itick, alpha, screen, peer_id) catch |e| js.debug.fail(e);
+    render(itick, alpha, screen, peer_id) catch |e| debug.fail(e);
 }
 
 export fn jsPullInputBuffer(itick: i32) void {
-    pull_input_buffer(itick) catch |e| js.debug.fail(e);
+    pull_input_buffer(itick) catch |e| debug.fail(e);
 }
 
 fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
+    _ = alpha;
+    _ = screen;
+    _ = peer_id;
+
     const utick: usize = @intCast(tick);
 
     // ensure it can hold tick and tick+1
@@ -61,7 +68,7 @@ fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
 
         var prev_state_copy = states.items[new_tick - 1];
         var new_state = &prev_state_copy;
-        var state_inputs: [4]js.inputs.Input = undefined;
+        var state_inputs: [4]Input = undefined;
 
         for (peers_inputs, 0..4, 1..5) |inputs, i, inputs_peer_id| {
             var input = &state_inputs[i];
@@ -73,22 +80,30 @@ fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
             }
         }
 
-        js.debug.allow_log = @as(i32, @intCast(new_tick)) == tick;
-        if (js.debug.allow_log) {
-            js.debug.clear();
-        }
+        // debug.allow_log = @as(i32, @intCast(new_tick)) == tick;
+        // if (debug.allow_log) {
+        //     debug.clear();
+        // }
 
         new_state.update(&state_inputs);
-        js.debug.allow_log = false;
+        // debug.allow_log = false;
 
         const new_state_ref = try states.addOne(wal);
         new_state_ref.* = new_state.*;
     }
 
-    const state_left = &states.items[utick];
-    const state_right = &states.items[utick + 1];
+    // const state_left = &states.items[utick];
+    // const state_right = &states.items[utick + 1];
 
-    state_right.render(state_left, alpha, screen, peer_id);
+    // state_right.render(state_left, alpha, screen, peer_id);
+
+    if (renderer == null) {
+        renderer = game.Render.create();
+    }
+
+    var r: *game.Render = &renderer.?;
+
+    r.render();
 }
 
 fn pull_input_buffer(itick: i32) !void {
@@ -101,12 +116,12 @@ fn pull_input_buffer(itick: i32) !void {
 
     // pop all states that depends on the inputs were modifying
     while (states.items.len > 0 and states.items.len - 1 > tick) {
-        _ = states.pop() orelse js.debug.fail("impossible");
+        _ = states.pop() orelse debug.fail("impossible");
     }
 
     // pop all input entries after and on this tick
     while (peerInputArray.items.len > tick) {
-        _ = peerInputArray.pop() orelse js.debug.fail("impossible");
+        _ = peerInputArray.pop() orelse debug.fail("impossible");
     }
 
     // fill holes by duplicating the last inputs before this tick

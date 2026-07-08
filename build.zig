@@ -34,7 +34,6 @@ pub fn build(b: *std.Build) void {
 
         const run_gen = b.addRunArtifact(gen_exe);
         const bindings_ts = run_gen.addOutputFileArg("bindings.ts");
-
         const install_bindings = b.addInstallFile(bindings_ts, "../frontend/src/wasm/generated/bindings.ts");
         b.getInstallStep().dependOn(&install_bindings.step);
     }
@@ -52,6 +51,7 @@ pub fn build(b: *std.Build) void {
         const run_env_gen = b.addRunArtifact(gen_exe);
         const env_ts = run_env_gen.addOutputFileArg("env.ts");
         run_env_gen.addDirectoryArg(b.path("src"));
+        run_env_gen.has_side_effects = true;
 
         const install_end = b.addInstallFile(env_ts, "../frontend/src/wasm/generated/env.ts");
         b.getInstallStep().dependOn(&install_end.step);

@@ -3,10 +3,7 @@ import { createInputProxy, InputByteLength, InputLayout, type InputView } from "
 export { createInputProxy, InputByteLength, InputLayout };
 export type { InputView };
 
-export function inputControl(element: HTMLElement, inputs: InputView) {
-  const stop = new AbortController();
-  const signal = stop.signal;
-
+export function inputControl(element: HTMLElement, inputs: InputView, signal: AbortSignal) {
   inputs.screen_width = element.clientWidth;
   inputs.screen_height = element.clientHeight;
 
@@ -21,6 +18,10 @@ export function inputControl(element: HTMLElement, inputs: InputView) {
   });
 
   resizeObserver.observe(element);
+
+  signal.addEventListener("abort", () => {
+    resizeObserver.disconnect();
+  });
 
   element.addEventListener("contextmenu", (e) => e.preventDefault(), { signal });
 
@@ -80,11 +81,4 @@ export function inputControl(element: HTMLElement, inputs: InputView) {
     },
     { signal, passive: true },
   );
-
-  return {
-    destroy: () => {
-      resizeObserver.disconnect();
-      stop.abort();
-    },
-  };
 }

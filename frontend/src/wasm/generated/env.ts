@@ -1,10 +1,10 @@
 // AUTO-GENERATED
 
-export type opaque_ptr = { readonly _: unique symbol };
+export type opaque_ptr = { readonly _: unique symbol};
 
 export interface WasmFnExports {
   /**
-   * @returns *js.inputs.Input
+   * @returns *Input
    */
   jsGetInputBufferPtr(): number;
   /**
@@ -14,7 +14,7 @@ export interface WasmFnExports {
   jsGetPeerInputsLen(peer_id: number): number;
   /**
    * @param peer_id i32
-   * @returns [*]js.inputs.Input
+   * @returns [*]Input
    */
   jsGetPeerInputsPtr(peer_id: number): number;
   /**
@@ -36,7 +36,7 @@ export interface WasmFnExports {
 export interface WasmEnv {
   /**
    * @param target GLEnum_Buffer
-   * @param dataPtr [*]f32
+   * @param dataPtr [*]const f32
    * @param dataLen i32
    * @param usage GLEnum_Buffer
    * @returns void
@@ -44,21 +44,21 @@ export interface WasmEnv {
   _bufferData(target: number, dataPtr: number, dataLen: number, usage: number): void;
   /**
    * @param program *anyopaque
-   * @param namePtr [*]u8
+   * @param namePtr [*]const u8
    * @param nameLen i32
    * @returns i32
    */
   _getAttribLocation(program: opaque_ptr, namePtr: number, nameLen: number): number;
   /**
    * @param program *anyopaque
-   * @param namePtr [*]u8
+   * @param namePtr [*]const u8
    * @param nameLen i32
    * @returns *anyopaque
    */
   _getUniformLocation(program: opaque_ptr, namePtr: number, nameLen: number): opaque_ptr;
   /**
    * @param shader *anyopaque
-   * @param sourcePtr [*]u8
+   * @param sourcePtr [*]const u8
    * @param sourceLen i32
    * @returns void
    */
@@ -72,14 +72,7 @@ export interface WasmEnv {
    * @param offset i32
    * @returns void
    */
-  _vertexAttribPointer(
-    index: number,
-    size: number,
-    type: number,
-    normalized: number,
-    stride: number,
-    offset: number,
-  ): void;
+  _vertexAttribPointer(index: number, size: number, type: number, normalized: number, stride: number, offset: number): void;
   /**
    * @param program *anyopaque
    * @param shader *anyopaque
@@ -97,6 +90,11 @@ export interface WasmEnv {
    * @returns void
    */
   bindVertexArray(vao: opaque_ptr): void;
+  /**
+   * @param mask GLEnum_ClearBuffer
+   * @returns void
+   */
+  clear(mask: number): void;
   /**
    * @param shader *anyopaque
    * @returns void
@@ -153,6 +151,12 @@ export interface WasmEnv {
    * @returns void
    */
   linkProgram(program: opaque_ptr): void;
+  /**
+   * @param uniform *anyopaque
+   * @param value f32
+   * @returns void
+   */
+  uniform1f(uniform: opaque_ptr, value: number): void;
   /**
    * @param program *anyopaque
    * @returns void

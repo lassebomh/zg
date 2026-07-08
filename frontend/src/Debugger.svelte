@@ -4,10 +4,6 @@
 
   let gl!: WebGL2RenderingContext;
 
-  let sendCanvasCommands:
-    | ((commandsTypesPtr: number, commandsArgsPtr: number, commandsLen: number) => void)
-    | undefined;
-
   function readString(ptr: number, len: number) {
     const dec = new TextDecoder();
     const chars = new Uint8Array(wasm.memory.buffer, ptr, len);
@@ -20,13 +16,14 @@
       return opaque.create(shader);
     },
     _shaderSource(shader, sourcePtr, sourceLen) {
-      gl.shaderSource(opaque.get(shader), readString(sourcePtr, sourceLen));
+      const source = readString(sourcePtr, sourceLen);
+      gl.shaderSource(opaque.get(shader), source);
     },
     compileShader(shader) {
       const s = opaque.get(shader);
       gl.compileShader(s);
-      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        throw new Error(gl.getShaderInfoLog(shader)!);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        throw new Error(gl.getShaderInfoLog(s)!);
       }
     },
     attachShader(program, shader) {
@@ -70,7 +67,15 @@
     },
     _getUniformLocation(program, namePtr, nameLen) {
       const name = readString(namePtr, nameLen);
-      return opaque.create(gl.getUniformLocation(program, name) ?? fail());
+      const p = opaque.get(program);
+      const uniform = gl.getUniformLocation(p, name) ?? fail();
+      return opaque.create(uniform);
+    },
+    uniform1f(uniform, value) {
+      gl.uniform1f(opaque.get(uniform), value);
+    },
+    clear(mask) {
+      gl.clear(mask);
     },
     js_log_str(ptr, length) {
       const dec = new TextDecoder();
@@ -81,7 +86,8 @@
       console.clear();
     },
     flush_commands(commandsTypesPtr, commandsArgsPtr, commandsLen) {
-      sendCanvasCommands?.(commandsTypesPtr, commandsArgsPtr, commandsLen);
+      // sendCanvasCommands?.(commandsTypesPtr, commandsArgsPtr, commandsLen);
+      fail();
     },
   });
 
@@ -122,7 +128,7 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
-  import { attachCanvas } from "./canvas";
+  import { onResize } from "./canvas";
   import { abortSignal, fail, now } from "./lib/utils.js";
   import { createInputProxy, InputByteLength, inputControl } from "./inputs";
 
@@ -185,7 +191,10 @@
   const inputProxy = createInputProxy(new DataView(inputBuffer));
 
   onMount(() => {
-    const inputController = inputControl(gameCanvas, inputProxy);
+    const { signal: destroySignal, abort: destroy } = abortSignal();
+    gl = gameCanvas.getContext("webgl2") ?? fail();
+
+    inputControl(gameCanvas, inputProxy, destroySignal);
 
     const saveInterval = setInterval(async () => {
       const save: Save = {
@@ -202,8 +211,10 @@
       }
       await saveStore.set(save);
     }, 1000);
+    destroySignal.addEventListener("abort", () => clearInterval(saveInterval));
 
     let frameRequest: number;
+    destroySignal.addEventListener("abort", () => cancelAnimationFrame(frameRequest));
 
     let t0 = now();
     function render() {
@@ -241,31 +252,34 @@
       frameRequest = requestAnimationFrame(render);
     }
 
-    const gameCanvasController = attachCanvas({
-      canvas: gameCanvas,
-      onresize(width, height) {
+    onResize(
+      gameCanvas,
+      (width, height) => {
+        gameCanvas.width = width;
+        gameCanvas.height = height;
         gameWidth = width;
         gameHeight = height;
         cancelAnimationFrame(frameRequest);
         render();
+        gl.viewport(0, 0, width, height);
       },
-    });
+      destroySignal,
+    );
 
-    sendCanvasCommands = (commandsTypesPtr, commandsArgsPtr, commandsLen) => {
-      gameCanvasController.send(wasm.memory.buffer, commandsTypesPtr, commandsArgsPtr, commandsLen);
-    };
-
-    const tracksCanvasController = attachCanvas({
-      canvas: tracksCanvas,
-      onresize(width, height) {
+    onResize(
+      tracksCanvas,
+      (width, height) => {
+        tracksCanvas.width = width;
+        tracksCanvas.height = height;
         tracksWidth = width;
         tracksHeight = height;
         cancelAnimationFrame(frameRequest);
         render();
       },
-    });
+      destroySignal,
+    );
 
-    const tracksCtx = tracksCanvasController.context;
+    const tracksCtx = tracksCanvas.getContext("2d") ?? fail();
 
     function renderTracks() {
       const w = tracksWidth;
@@ -417,13 +431,7 @@
 
     render();
 
-    return () => {
-      gameCanvasController.destroy();
-      tracksCanvasController.destroy();
-      inputController.destroy();
-      clearInterval(saveInterval);
-      cancelAnimationFrame(frameRequest);
-    };
+    return destroy;
   });
 
   let flushInputBufferInterval: number | undefined;

@@ -99,6 +99,7 @@ const fragmentSource =
     \\precision mediump float;
     \\in vec2 vUV;
     \\out vec4 fragColor;
+    \\uniform float uTime;
     \\
     \\vec3 hsv2rgb(float h, float s, float v) {
     \\  vec3 k = mod(vec3(5.0, 3.0, 1.0) + h * 6.0, 6.0);
@@ -106,13 +107,13 @@ const fragmentSource =
     \\}
     \\
     \\void main() {
-    \\  fragColor = vec4(hsv2rgb(vUV.y, 1.0, 1.0), 1.0);
+    \\  fragColor = vec4(hsv2rgb(vUV.y + uTime, 1.0, 1.0), 1.0);
     \\}
 ;
 
 const gl = @import("../js/wgl2.zig");
 
-pub const Presenter = struct {
+pub const Render = struct {
     const This = @This();
 
     program: *anyopaque,
@@ -139,10 +140,12 @@ pub const Presenter = struct {
 
         const buffer = gl.createBuffer();
         gl.bindBuffer(.ARRAY_BUFFER, buffer);
-        gl.bufferData(.ARRAY_BUFFER, .{
+
+        const data: [12]f32 = .{
             -1, -1, 1, -1, -1, 1,
             -1, 1,  1, -1, 1,  1,
-        }, .STATIC_DRAW);
+        };
+        gl.bufferData(.ARRAY_BUFFER, &data, .STATIC_DRAW);
 
         const loc = gl.getAttribLocation(program, "position");
         gl.enableVertexAttribArray(loc);
@@ -156,5 +159,15 @@ pub const Presenter = struct {
             .vao = vao,
             .uTime = uTime,
         };
+    }
+
+    pub fn render(this: *This) void {
+        this.t += 1;
+        gl.clear(.COLOR_BUFFER_BIT);
+        gl.useProgram(this.program);
+        gl.bindVertexArray(this.vao);
+        const ft: f32 = @floatFromInt(this.t);
+        gl.uniform1f(this.uTime, ft * 0.001);
+        gl.drawArrays(.TRIANGLES, 0, 6);
     }
 };

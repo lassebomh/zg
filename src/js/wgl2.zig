@@ -150,8 +150,8 @@ pub const GLEnum_Buffer = enum(i32) {
     PIXEL_UNPACK_BUFFER_BINDING = 0x88EF,
     COPY_READ_BUFFER = 0x8F36,
     COPY_WRITE_BUFFER = 0x8F37,
-    COPY_READ_BUFFER_BINDING = 0x8F36,
-    COPY_WRITE_BUFFER_BINDING = 0x8F37,
+    // COPY_READ_BUFFER_BINDING = 0x8F36, // Duplicates?
+    // COPY_WRITE_BUFFER_BINDING = 0x8F37, // Duplicates?
 };
 
 pub const GLEnum_VertexAttribute = enum(i32) {
@@ -660,9 +660,9 @@ pub const GLEnum_Miscellaneous = enum(i32) {
 };
 
 pub extern fn createShader(shaderType: GLEnum_Shader) *anyopaque;
-extern fn _shaderSource(shader: *anyopaque, sourcePtr: [*]u8, sourceLen: i32) void;
-pub fn shaderSource(shader: *anyopaque, source: []u8) void {
-    _shaderSource(shader, source.ptr, source.len);
+extern fn _shaderSource(shader: *anyopaque, sourcePtr: [*]const u8, sourceLen: i32) void;
+pub fn shaderSource(shader: *anyopaque, source: []const u8) void {
+    _shaderSource(shader, source.ptr, @intCast(source.len));
 }
 
 pub extern fn compileShader(shader: *anyopaque) void;
@@ -674,14 +674,14 @@ pub extern fn bindVertexArray(vao: *anyopaque) void;
 
 pub extern fn createBuffer() *anyopaque;
 pub extern fn bindBuffer(target: GLEnum_Buffer, buffer: *anyopaque) void;
-extern fn _bufferData(target: GLEnum_Buffer, dataPtr: [*]f32, dataLen: i32, usage: GLEnum_Buffer) void;
-pub fn bufferData(target: GLEnum_Buffer, data: []f32, usage: GLEnum_Buffer) void {
-    _bufferData(target, data.ptr, data.len, usage);
+extern fn _bufferData(target: GLEnum_Buffer, dataPtr: [*]const f32, dataLen: i32, usage: GLEnum_Buffer) void;
+pub fn bufferData(target: GLEnum_Buffer, data: []const f32, usage: GLEnum_Buffer) void {
+    _bufferData(target, data.ptr, @intCast(data.len), usage);
 }
 
-extern fn _getAttribLocation(program: *anyopaque, namePtr: [*]u8, nameLen: i32) i32;
-pub fn getAttribLocation(program: *anyopaque, name: []u8) i32 {
-    _getAttribLocation(program, name.ptr, name.len);
+extern fn _getAttribLocation(program: *anyopaque, namePtr: [*]const u8, nameLen: i32) i32;
+pub fn getAttribLocation(program: *anyopaque, name: []const u8) i32 {
+    return _getAttribLocation(program, name.ptr, @intCast(name.len));
 }
 
 pub extern fn enableVertexAttribArray(attribLocation: i32) void;
@@ -694,7 +694,10 @@ pub fn vertexAttribPointer(index: i32, size: i32, _type: GLEnum_DataType, normal
 pub extern fn useProgram(program: *anyopaque) void;
 pub extern fn drawArrays(mode: GLEnum_RenderPrimitive, first: i32, count: i32) void;
 
-extern fn _getUniformLocation(program: *anyopaque, namePtr: [*]u8, nameLen: i32) *anyopaque;
-pub fn getUniformLocation(program: *anyopaque, name: []u8) *anyopaque {
-    return _getUniformLocation(program, name.ptr, name.len);
+extern fn _getUniformLocation(program: *anyopaque, namePtr: [*]const u8, nameLen: i32) *anyopaque;
+pub fn getUniformLocation(program: *anyopaque, name: []const u8) *anyopaque {
+    return _getUniformLocation(program, name.ptr, @intCast(name.len));
 }
+
+pub extern fn uniform1f(uniform: *anyopaque, value: f32) void;
+pub extern fn clear(mask: GLEnum_ClearBuffer) void;
