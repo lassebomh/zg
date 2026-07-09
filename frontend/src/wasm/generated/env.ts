@@ -49,7 +49,7 @@ export interface WasmEnv {
    * @param usage GLEnum_Buffer
    * @returns void
    */
-  _bufferDatai(target: number, dataPtr: number, dataLen: number, usage: number): void;
+  _bufferDatau(target: number, dataPtr: number, dataLen: number, usage: number): void;
   /**
    * @param program *anyopaque
    * @param namePtr [*]const u8
@@ -114,7 +114,7 @@ export interface WasmEnv {
    */
   bindVertexArray(vao: opaque_ptr): void;
   /**
-   * @param mask GLEnum_ClearBuffer
+   * @param mask i32
    * @returns void
    */
   clear(mask: number): void;

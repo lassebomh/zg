@@ -88,6 +88,7 @@ pub const State = struct {
 
 const vertexSource =
     \\#version 300 es
+    \\
     \\in vec3 position;
     \\in vec3 color;
     \\
@@ -174,11 +175,12 @@ pub const Render = struct {
         {
             const buffer = gl.createBuffer();
             gl.bindBuffer(.ARRAY_BUFFER, buffer);
-            gl.bufferDataf(.ARRAY_BUFFER, &unit_cube_vertices, .STATIC_DRAW);
+            gl.bufferDataF32(.ARRAY_BUFFER, &unit_cube_vertices, .STATIC_DRAW);
 
             const indexBuffer = gl.createBuffer();
             gl.bindBuffer(.ELEMENT_ARRAY_BUFFER, indexBuffer);
-            gl.bufferDatai(.ELEMENT_ARRAY_BUFFER, &.{ // front face
+            gl.bufferDataU32(.ELEMENT_ARRAY_BUFFER, &.{
+                // front face
                 0, 1, 2,
                 0, 2, 3,
                 // back face
@@ -207,20 +209,20 @@ pub const Render = struct {
             gl.bindBuffer(.ARRAY_BUFFER, buffer);
 
             const data: [108]f32 = .{
+                1, 0, 1, 0, 0, 1, 0, 1, 0,
+                1, 0, 1, 0, 0, 1, 0, 1, 0,
+                1, 0, 1, 0, 0, 1, 0, 0, 1,
+                1, 0, 1, 0, 1, 0, 0, 1, 0,
+                1, 0, 1, 0, 0, 1, 0, 1, 0,
+                1, 0, 1, 0, 1, 0, 0, 0, 1,
+                1, 0, 1, 0, 0, 1, 0, 1, 0,
+                1, 0, 1, 0, 1, 0, 0, 0, 1,
+                1, 0, 1, 0, 0, 1, 0, 1, 0,
+                1, 0, 1, 0, 1, 0, 0, 0, 1,
+                1, 0, 1, 0, 0, 1, 0, 1, 0,
                 1, 0, 0, 0, 1, 0, 0, 0, 1,
-                0, 0, 1, 0, 1, 0, 1, 0, 0,
-                1, 0, 0, 0, 1, 0, 0, 0, 1,
-                0, 0, 1, 0, 1, 0, 1, 0, 0,
-                1, 0, 0, 0, 1, 0, 0, 0, 1,
-                0, 0, 1, 0, 1, 0, 1, 0, 0,
-                1, 0, 0, 0, 1, 0, 0, 0, 1,
-                0, 0, 1, 0, 1, 0, 1, 0, 0,
-                1, 0, 0, 0, 1, 0, 0, 0, 1,
-                0, 0, 1, 0, 1, 0, 1, 0, 0,
-                1, 0, 0, 0, 1, 0, 0, 0, 1,
-                0, 0, 1, 0, 1, 0, 1, 0, 0,
             };
-            gl.bufferDataf(.ARRAY_BUFFER, &data, .STATIC_DRAW);
+            gl.bufferDataF32(.ARRAY_BUFFER, &data, .STATIC_DRAW);
 
             const loc = gl.getAttribLocation(program, "color");
             gl.enableVertexAttribArray(loc);
@@ -263,7 +265,7 @@ pub const Render = struct {
         gl.uniformMatrix4fv(this.uModel, false, uModel);
 
         const uView = m.Mat4x4.translate(.init(0, 0, 5))
-            .mul(&m.Mat4x4.rotateX(offset))
+            .mul(&m.Mat4x4.rotateX(offset / 3))
             .mul(&m.Mat4x4.rotateY(offset));
 
         gl.uniformMatrix4fv(this.uView, false, uView);

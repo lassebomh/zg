@@ -675,12 +675,12 @@ pub extern fn bindVertexArray(vao: *anyopaque) void;
 pub extern fn createBuffer() *anyopaque;
 pub extern fn bindBuffer(target: GLEnum_Buffer, buffer: *anyopaque) void;
 extern fn _bufferDataf(target: GLEnum_Buffer, dataPtr: [*]const f32, dataLen: i32, usage: GLEnum_Buffer) void;
-pub fn bufferDataf(target: GLEnum_Buffer, data: []const f32, usage: GLEnum_Buffer) void {
+pub fn bufferDataF32(target: GLEnum_Buffer, data: []const f32, usage: GLEnum_Buffer) void {
     _bufferDataf(target, data.ptr, @intCast(data.len), usage);
 }
-extern fn _bufferDatai(target: GLEnum_Buffer, dataPtr: [*]const u32, dataLen: i32, usage: GLEnum_Buffer) void;
-pub fn bufferDatai(target: GLEnum_Buffer, data: []const u32, usage: GLEnum_Buffer) void {
-    _bufferDatai(target, data.ptr, @intCast(data.len), usage);
+extern fn _bufferDatau(target: GLEnum_Buffer, dataPtr: [*]const u32, dataLen: i32, usage: GLEnum_Buffer) void;
+pub fn bufferDataU32(target: GLEnum_Buffer, data: []const u32, usage: GLEnum_Buffer) void {
+    _bufferDatau(target, data.ptr, @intCast(data.len), usage);
 }
 
 extern fn _getAttribLocation(program: *anyopaque, namePtr: [*]const u8, nameLen: i32) i32;

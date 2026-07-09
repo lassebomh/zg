@@ -38,7 +38,7 @@
     _bufferDataf(target, dataPtr, dataLen, usage) {
       gl.bufferData(target, new Float32Array(wasm.memory.buffer, dataPtr, dataLen), usage);
     },
-    _bufferDatai(target, dataPtr, dataLen, usage) {
+    _bufferDatau(target, dataPtr, dataLen, usage) {
       gl.bufferData(target, new Uint32Array(wasm.memory.buffer, dataPtr, dataLen), usage);
     },
     drawElements(mode, count, type, offset) {
