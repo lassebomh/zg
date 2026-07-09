@@ -170,7 +170,6 @@ pub const GLEnum_VertexAttribute = enum(i32) {
 };
 
 pub const GLEnum_Culling = enum(i32) {
-    CULL_FACE = 0x0B44, // Passed to enable/disable to turn on/off culling. Can also be used with getParameter to find the current culling method.
     FRONT = 0x0404, // Passed to cullFace to specify that only front faces should be culled.
     BACK = 0x0405, // Passed to cullFace to specify that only back faces should be culled.
     FRONT_AND_BACK = 0x0408, // Passed to cullFace to specify that front and back faces should be culled.
@@ -178,6 +177,7 @@ pub const GLEnum_Culling = enum(i32) {
 
 pub const GLEnum_EnableDisable = enum(i32) {
     BLEND = 0x0BE2, // Passed to enable/disable to turn on/off blending. Can also be used with getParameter to find the current blending method.
+    CULL_FACE = 0x0B44, // Passed to enable/disable to turn on/off culling. Can also be used with getParameter to find the current culling method.
     DEPTH_TEST = 0x0B71, // Passed to enable/disable to turn on/off the depth test. Can also be used with getParameter to query the depth test.
     DITHER = 0x0BD0, // Passed to enable/disable to turn on/off dithering. Can also be used with getParameter to find the current dithering method.
     POLYGON_OFFSET_FILL = 0x8037, // Passed to enable/disable to turn on/off the polygon offset. Useful for rendering hidden-line images, decals, and solids with highlighted edges. Can also be used with getParameter to query the scissor test.
@@ -674,9 +674,13 @@ pub extern fn bindVertexArray(vao: *anyopaque) void;
 
 pub extern fn createBuffer() *anyopaque;
 pub extern fn bindBuffer(target: GLEnum_Buffer, buffer: *anyopaque) void;
-extern fn _bufferData(target: GLEnum_Buffer, dataPtr: [*]const f32, dataLen: i32, usage: GLEnum_Buffer) void;
-pub fn bufferData(target: GLEnum_Buffer, data: []const f32, usage: GLEnum_Buffer) void {
-    _bufferData(target, data.ptr, @intCast(data.len), usage);
+extern fn _bufferDataf(target: GLEnum_Buffer, dataPtr: [*]const f32, dataLen: i32, usage: GLEnum_Buffer) void;
+pub fn bufferDataf(target: GLEnum_Buffer, data: []const f32, usage: GLEnum_Buffer) void {
+    _bufferDataf(target, data.ptr, @intCast(data.len), usage);
+}
+extern fn _bufferDatai(target: GLEnum_Buffer, dataPtr: [*]const u32, dataLen: i32, usage: GLEnum_Buffer) void;
+pub fn bufferDatai(target: GLEnum_Buffer, data: []const u32, usage: GLEnum_Buffer) void {
+    _bufferDatai(target, data.ptr, @intCast(data.len), usage);
 }
 
 extern fn _getAttribLocation(program: *anyopaque, namePtr: [*]const u8, nameLen: i32) i32;
@@ -699,5 +703,32 @@ pub fn getUniformLocation(program: *anyopaque, name: []const u8) *anyopaque {
     return _getUniformLocation(program, name.ptr, @intCast(name.len));
 }
 
+const m = @import("../math/main.zig");
+
+extern fn _uniformMatrix4fv(uniform: *anyopaque, transpose: i32, valuePtr: [*]const f32, valueLen: i32) void;
+pub fn uniformMatrix4fv(uniform: *anyopaque, transpose: bool, value: m.Mat4x4) void {
+    const mat: [16]f32 = .{
+        value.v[0].v[0],
+        value.v[0].v[1],
+        value.v[0].v[2],
+        value.v[0].v[3],
+        value.v[1].v[0],
+        value.v[1].v[1],
+        value.v[1].v[2],
+        value.v[1].v[3],
+        value.v[2].v[0],
+        value.v[2].v[1],
+        value.v[2].v[2],
+        value.v[2].v[3],
+        value.v[3].v[0],
+        value.v[3].v[1],
+        value.v[3].v[2],
+        value.v[3].v[3],
+    };
+    _uniformMatrix4fv(uniform, if (transpose) 1 else 0, &mat, mat.len);
+}
 pub extern fn uniform1f(uniform: *anyopaque, value: f32) void;
-pub extern fn clear(mask: GLEnum_ClearBuffer) void;
+pub extern fn clear(mask: i32) void;
+pub extern fn enable(cap: GLEnum_EnableDisable) void;
+
+pub extern fn drawElements(mode: GLEnum_RenderPrimitive, count: i32, type: GLEnum_DataType, offset: i32) void;

@@ -35,8 +35,14 @@
     bindVertexArray(vao) {
       gl.bindVertexArray(opaque.get(vao));
     },
-    _bufferData(target, dataPtr, dataLen, usage) {
+    _bufferDataf(target, dataPtr, dataLen, usage) {
       gl.bufferData(target, new Float32Array(wasm.memory.buffer, dataPtr, dataLen), usage);
+    },
+    _bufferDatai(target, dataPtr, dataLen, usage) {
+      gl.bufferData(target, new Uint32Array(wasm.memory.buffer, dataPtr, dataLen), usage);
+    },
+    drawElements(mode, count, type, offset) {
+      gl.drawElements(mode, count, type, offset);
     },
     createBuffer() {
       return opaque.create(gl.createBuffer());
@@ -70,6 +76,16 @@
       const p = opaque.get(program);
       const uniform = gl.getUniformLocation(p, name) ?? fail();
       return opaque.create(uniform);
+    },
+    _uniformMatrix4fv(uniform, transpose, valuePtr, valueLen) {
+      gl.uniformMatrix4fv(
+        opaque.get(uniform),
+        transpose != 0,
+        new Float32Array(wasm.memory.buffer, valuePtr, valueLen),
+      );
+    },
+    enable(cap) {
+      gl.enable(cap);
     },
     uniform1f(uniform, value) {
       gl.uniform1f(opaque.get(uniform), value);

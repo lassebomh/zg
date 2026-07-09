@@ -6,6 +6,8 @@ const lib = @import("../lib/root.zig");
 const RGBA = lib.RGBA;
 const v2 = lib.v2;
 
+const m = @import("../math/main.zig");
+
 pub const State = struct {
     avatars: lib.Container(game.Avatar, game.MaxPlayers), // should multiply if controllers are supported,
     players: lib.Container(game.Player, game.MaxPlayers),
@@ -86,30 +88,54 @@ pub const State = struct {
 
 const vertexSource =
     \\#version 300 es
-    \\in vec2 position;
-    \\out vec2 vUV;
+    \\in vec3 position;
+    \\in vec3 color;
+    \\
+    \\out vec3 vColor;
+    \\
+    \\uniform mat4 uProjection;
+    \\uniform mat4 uModel;
+    \\uniform mat4 uView;
+    \\
     \\void main() {
-    \\  vUV = position * 0.5 + 0.5;
-    \\  gl_Position = vec4(position, 0.0, 1.0);
+    \\  vColor = color;
+    \\  gl_Position = uProjection * uView * uModel * vec4(position, 1.0);
     \\}
 ;
 
 const fragmentSource =
     \\#version 300 es
     \\precision mediump float;
-    \\in vec2 vUV;
-    \\out vec4 fragColor;
-    \\uniform float uTime;
     \\
-    \\vec3 hsv2rgb(float h, float s, float v) {
-    \\  vec3 k = mod(vec3(5.0, 3.0, 1.0) + h * 6.0, 6.0);
-    \\  return v - v * s * max(min(min(k, 4.0 - k), 1.0), 0.0);
-    \\}
+    \\// uniform float uTime;
+    \\
+    \\in vec3 vColor;
+    \\
+    \\out vec4 fragColor;
     \\
     \\void main() {
-    \\  fragColor = vec4(hsv2rgb(vUV.y + uTime, 1.0, 1.0), 1.0);
+    \\  fragColor = vec4(vColor, 1.0);
     \\}
 ;
+
+const unit_cube_vertices = [24]f32{
+    // front-bottom-left
+    -0.5, -0.5, -0.5,
+    // front-bottom-right
+    0.5,  -0.5, -0.5,
+    // front-top-right
+    0.5,  0.5,  -0.5,
+    // front-top-left
+    -0.5, 0.5,  -0.5,
+    // back-bottom-left
+    -0.5, -0.5, 0.5,
+    // back-bottom-right
+    0.5,  -0.5, 0.5,
+    // back-top-right
+    0.5,  0.5,  0.5,
+    // back-top-left
+    -0.5, 0.5,  0.5,
+};
 
 const gl = @import("../js/wgl2.zig");
 
@@ -118,11 +144,18 @@ pub const Render = struct {
 
     program: *anyopaque,
     vao: *anyopaque,
-    uTime: *anyopaque,
     t: i32,
+
+    uTime: *anyopaque,
+    uProjection: *anyopaque,
+    uModel: *anyopaque,
+    uView: *anyopaque,
 
     pub fn create() This {
         const program = gl.createProgram();
+        gl.enable(.DEPTH_TEST);
+        gl.enable(.CULL_FACE);
+
         const vs = gl.createShader(gl.GLEnum_Shader.VERTEX_SHADER);
         gl.shaderSource(vs, vertexSource);
         gl.compileShader(vs);
@@ -138,36 +171,103 @@ pub const Render = struct {
         const vao = gl.createVertexArray();
         gl.bindVertexArray(vao);
 
-        const buffer = gl.createBuffer();
-        gl.bindBuffer(.ARRAY_BUFFER, buffer);
+        {
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(.ARRAY_BUFFER, buffer);
+            gl.bufferDataf(.ARRAY_BUFFER, &unit_cube_vertices, .STATIC_DRAW);
 
-        const data: [12]f32 = .{
-            -1, -1, 1, -1, -1, 1,
-            -1, 1,  1, -1, 1,  1,
-        };
-        gl.bufferData(.ARRAY_BUFFER, &data, .STATIC_DRAW);
+            const indexBuffer = gl.createBuffer();
+            gl.bindBuffer(.ELEMENT_ARRAY_BUFFER, indexBuffer);
+            gl.bufferDatai(.ELEMENT_ARRAY_BUFFER, &.{ // front face
+                0, 1, 2,
+                0, 2, 3,
+                // back face
+                5, 4, 7,
+                5, 7, 6,
+                // left face
+                4, 0, 3,
+                4, 3, 7,
+                // right face
+                1, 5, 6,
+                1, 6, 2,
+                // top face
+                3, 2, 6,
+                3, 6, 7,
+                // bottom face
+                4, 5, 1,
+                4, 1, 0,
+            }, .STATIC_DRAW);
 
-        const loc = gl.getAttribLocation(program, "position");
-        gl.enableVertexAttribArray(loc);
-        gl.vertexAttribPointer(loc, 2, .FLOAT, false, 0, 0);
+            const loc = gl.getAttribLocation(program, "position");
+            gl.enableVertexAttribArray(loc);
+            gl.vertexAttribPointer(loc, 3, .FLOAT, false, 0, 0);
+        }
+        {
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(.ARRAY_BUFFER, buffer);
 
-        const uTime = gl.getUniformLocation(program, "uTime");
+            const data: [108]f32 = .{
+                1, 0, 0, 0, 1, 0, 0, 0, 1,
+                0, 0, 1, 0, 1, 0, 1, 0, 0,
+                1, 0, 0, 0, 1, 0, 0, 0, 1,
+                0, 0, 1, 0, 1, 0, 1, 0, 0,
+                1, 0, 0, 0, 1, 0, 0, 0, 1,
+                0, 0, 1, 0, 1, 0, 1, 0, 0,
+                1, 0, 0, 0, 1, 0, 0, 0, 1,
+                0, 0, 1, 0, 1, 0, 1, 0, 0,
+                1, 0, 0, 0, 1, 0, 0, 0, 1,
+                0, 0, 1, 0, 1, 0, 1, 0, 0,
+                1, 0, 0, 0, 1, 0, 0, 0, 1,
+                0, 0, 1, 0, 1, 0, 1, 0, 0,
+            };
+            gl.bufferDataf(.ARRAY_BUFFER, &data, .STATIC_DRAW);
+
+            const loc = gl.getAttribLocation(program, "color");
+            gl.enableVertexAttribArray(loc);
+            gl.vertexAttribPointer(loc, 3, .FLOAT, false, 0, 0);
+        }
+
+        // const uTime = gl.getUniformLocation(program, "uTime");
+        const uProjection = gl.getUniformLocation(program, "uProjection");
+        const uModel = gl.getUniformLocation(program, "uModel");
+        const uView = gl.getUniformLocation(program, "uView");
 
         return .{
             .t = 0,
             .program = program,
             .vao = vao,
-            .uTime = uTime,
+            .uTime = undefined,
+            .uProjection = uProjection,
+            .uModel = uModel,
+            .uView = uView,
         };
     }
 
     pub fn render(this: *This) void {
         this.t += 1;
-        gl.clear(.COLOR_BUFFER_BIT);
+
+        var clear: i32 = 0;
+        clear |= @intFromEnum(gl.GLEnum_ClearBuffer.COLOR_BUFFER_BIT);
+        clear |= @intFromEnum(gl.GLEnum_ClearBuffer.DEPTH_BUFFER_BIT);
+        gl.clear(clear);
+
         gl.useProgram(this.program);
         gl.bindVertexArray(this.vao);
-        const ft: f32 = @floatFromInt(this.t);
-        gl.uniform1f(this.uTime, ft * 0.001);
-        gl.drawArrays(.TRIANGLES, 0, 6);
+        var offset: f32 = @floatFromInt(this.t);
+        offset /= 100;
+
+        const uProj = m.Mat4x4.projection2D(.{ .left = -2, .right = 2, .bottom = -2, .top = 2, .near = 0, .far = 10 });
+        gl.uniformMatrix4fv(this.uProjection, false, uProj);
+
+        const uModel = m.Mat4x4.translate(.init(0, 0, 0));
+        gl.uniformMatrix4fv(this.uModel, false, uModel);
+
+        const uView = m.Mat4x4.translate(.init(0, 0, 5))
+            .mul(&m.Mat4x4.rotateX(offset))
+            .mul(&m.Mat4x4.rotateY(offset));
+
+        gl.uniformMatrix4fv(this.uView, false, uView);
+
+        gl.drawElements(.TRIANGLES, 36, .UNSIGNED_INT, 0);
     }
 };

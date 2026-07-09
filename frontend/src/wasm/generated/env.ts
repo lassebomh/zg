@@ -1,6 +1,6 @@
 // AUTO-GENERATED
 
-export type opaque_ptr = { readonly _: unique symbol};
+export type opaque_ptr = { readonly _: unique symbol };
 
 export interface WasmFnExports {
   /**
@@ -41,7 +41,15 @@ export interface WasmEnv {
    * @param usage GLEnum_Buffer
    * @returns void
    */
-  _bufferData(target: number, dataPtr: number, dataLen: number, usage: number): void;
+  _bufferDataf(target: number, dataPtr: number, dataLen: number, usage: number): void;
+  /**
+   * @param target GLEnum_Buffer
+   * @param dataPtr [*]const u32
+   * @param dataLen i32
+   * @param usage GLEnum_Buffer
+   * @returns void
+   */
+  _bufferDatai(target: number, dataPtr: number, dataLen: number, usage: number): void;
   /**
    * @param program *anyopaque
    * @param namePtr [*]const u8
@@ -64,6 +72,14 @@ export interface WasmEnv {
    */
   _shaderSource(shader: opaque_ptr, sourcePtr: number, sourceLen: number): void;
   /**
+   * @param uniform *anyopaque
+   * @param transpose i32
+   * @param valuePtr [*]const f32
+   * @param valueLen i32
+   * @returns void
+   */
+  _uniformMatrix4fv(uniform: opaque_ptr, transpose: number, valuePtr: number, valueLen: number): void;
+  /**
    * @param index i32
    * @param size i32
    * @param type GLEnum_DataType
@@ -72,7 +88,14 @@ export interface WasmEnv {
    * @param offset i32
    * @returns void
    */
-  _vertexAttribPointer(index: number, size: number, type: number, normalized: number, stride: number, offset: number): void;
+  _vertexAttribPointer(
+    index: number,
+    size: number,
+    type: number,
+    normalized: number,
+    stride: number,
+    offset: number,
+  ): void;
   /**
    * @param program *anyopaque
    * @param shader *anyopaque
@@ -124,6 +147,19 @@ export interface WasmEnv {
    * @returns void
    */
   drawArrays(mode: number, first: number, count: number): void;
+  /**
+   * @param mode GLEnum_RenderPrimitive
+   * @param count i32
+   * @param type GLEnum_DataType
+   * @param offset i32
+   * @returns void
+   */
+  drawElements(mode: number, count: number, type: number, offset: number): void;
+  /**
+   * @param cap GLEnum_EnableDisable
+   * @returns void
+   */
+  enable(cap: number): void;
   /**
    * @param attribLocation i32
    * @returns void
