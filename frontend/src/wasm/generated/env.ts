@@ -156,6 +156,15 @@ export interface WasmEnv {
    */
   drawElements(mode: number, count: number, type: number, offset: number): void;
   /**
+   * @param mode GLEnum_RenderPrimitive
+   * @param count i32
+   * @param type GLEnum_DataType
+   * @param offset i32
+   * @param instanceCount i32
+   * @returns void
+   */
+  drawElementsInstanced(mode: number, count: number, type: number, offset: number, instanceCount: number): void;
+  /**
    * @param cap GLEnum_EnableDisable
    * @returns void
    */
@@ -198,4 +207,10 @@ export interface WasmEnv {
    * @returns void
    */
   useProgram(program: opaque_ptr): void;
+  /**
+   * @param index i32
+   * @param divisor i32
+   * @returns void
+   */
+  vertexAttribDivisor(index: number, divisor: number): void;
 }

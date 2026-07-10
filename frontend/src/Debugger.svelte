@@ -41,6 +41,12 @@
     _bufferDatau(target, dataPtr, dataLen, usage) {
       gl.bufferData(target, new Uint32Array(wasm.memory.buffer, dataPtr, dataLen), usage);
     },
+    drawElementsInstanced(mode, count, type, offset, instanceCount) {
+      gl.drawElementsInstanced(mode, count, type, offset, instanceCount);
+    },
+    vertexAttribDivisor(index, divisor) {
+      gl.vertexAttribDivisor(index, divisor);
+    },
     drawElements(mode, count, type, offset) {
       gl.drawElements(mode, count, type, offset);
     },

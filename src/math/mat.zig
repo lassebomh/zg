@@ -500,6 +500,29 @@ pub fn Mat4x4(
         ///
         /// Mach mandates the use of a reversed depth buffer, so the returned transformation
         /// matrix maps to near=1 and far=0.
+
+        // pub inline fn projection2D(v: struct {
+        //     left: f32,
+        //     right: f32,
+        //     bottom: f32,
+        //     top: f32,
+        //     near: f32,
+        //     far: f32,
+        // }) Matrix {
+        //     var p = Matrix.ident;
+        //     p = p.mul(&Matrix.translate(math.vec3(
+        //         (v.right + v.left) / (v.left - v.right), // translate X so that the middle of (left, right) maps to x=0 in clip space
+        //         (v.top + v.bottom) / (v.bottom - v.top), // translate Y so that the middle of (bottom, top) maps to y=0 in clip space
+        //         v.far / (v.far - v.near), // translate Z so that far maps to z=0
+        //     )));
+        //     p = p.mul(&Matrix.scale(math.vec3(
+        //         2 / (v.right - v.left), // scale X so that [left, right] has a 2 unit range, e.g. [-1, +1]
+        //         2 / (v.top - v.bottom), // scale Y so that [bottom, top] has a 2 unit range, e.g. [-1, +1]
+        //         1 / (v.near - v.far), // scale Z so that [near, far] has a 1 unit range, e.g. [0, -1]
+        //     )));
+        //     return p;
+        // }
+
         pub inline fn projection2D(v: struct {
             left: f32,
             right: f32,
@@ -512,14 +535,38 @@ pub fn Mat4x4(
             p = p.mul(&Matrix.translate(math.vec3(
                 (v.right + v.left) / (v.left - v.right), // translate X so that the middle of (left, right) maps to x=0 in clip space
                 (v.top + v.bottom) / (v.bottom - v.top), // translate Y so that the middle of (bottom, top) maps to y=0 in clip space
-                v.far / (v.far - v.near), // translate Z so that far maps to z=0
+                (v.far + v.near) / (v.near - v.far), // translate Z so that the middle of (near, far) maps to z=0 in clip space
             )));
             p = p.mul(&Matrix.scale(math.vec3(
                 2 / (v.right - v.left), // scale X so that [left, right] has a 2 unit range, e.g. [-1, +1]
                 2 / (v.top - v.bottom), // scale Y so that [bottom, top] has a 2 unit range, e.g. [-1, +1]
-                1 / (v.near - v.far), // scale Z so that [near, far] has a 1 unit range, e.g. [0, -1]
+                -2 / (v.far - v.near), // scale Z so that [near, far] maps to [-1, +1]
             )));
             return p;
+        }
+        pub inline fn perspective(
+            v: struct {
+                fov: f32, // vertical field of view in radians
+                aspect: f32, // width / height
+                near: f32,
+                far: f32,
+            },
+        ) Matrix {
+            const f = 1.0 / @tan(v.fov / 2.0);
+            var p = Matrix.ident;
+            p = p.mul(&Matrix.scale(math.vec3(
+                f / v.aspect, // scale X by focal length adjusted for aspect ratio
+                f, // scale Y by focal length
+                -(v.far + v.near) / (v.far - v.near), // scale Z to map [near, far] into [-1, +1]
+            )));
+            // At this point we need to set the perspective divide and Z translation,
+            // which can't be expressed as simple scale/translate compositions,
+            // so we construct the remaining terms directly:
+            var result = p;
+            result.v[2].v[3] = -1.0; // w = -z (perspective divide)
+            result.v[3].v[2] = -(2.0 * v.far * v.near) / (v.far - v.near); // Z translation
+            result.v[3].v[3] = 0.0; // clear the 1.0 from identity
+            return result;
         }
 
         pub const mul = Shared.mul;

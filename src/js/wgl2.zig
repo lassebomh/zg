@@ -678,6 +678,9 @@ extern fn _bufferDataf(target: GLEnum_Buffer, dataPtr: [*]const f32, dataLen: i3
 pub fn bufferDataF32(target: GLEnum_Buffer, data: []const f32, usage: GLEnum_Buffer) void {
     _bufferDataf(target, data.ptr, @intCast(data.len), usage);
 }
+pub fn bufferDataM4x4(target: GLEnum_Buffer, data: []const m.Mat4x4, usage: GLEnum_Buffer) void {
+    _bufferDataf(target, @ptrCast(data.ptr), @intCast(data.len * 16), usage);
+}
 extern fn _bufferDatau(target: GLEnum_Buffer, dataPtr: [*]const u32, dataLen: i32, usage: GLEnum_Buffer) void;
 pub fn bufferDataU32(target: GLEnum_Buffer, data: []const u32, usage: GLEnum_Buffer) void {
     _bufferDatau(target, data.ptr, @intCast(data.len), usage);
@@ -707,28 +710,13 @@ const m = @import("../math/main.zig");
 
 extern fn _uniformMatrix4fv(uniform: *anyopaque, transpose: i32, valuePtr: [*]const f32, valueLen: i32) void;
 pub fn uniformMatrix4fv(uniform: *anyopaque, transpose: bool, value: m.Mat4x4) void {
-    const mat: [16]f32 = .{
-        value.v[0].v[0],
-        value.v[0].v[1],
-        value.v[0].v[2],
-        value.v[0].v[3],
-        value.v[1].v[0],
-        value.v[1].v[1],
-        value.v[1].v[2],
-        value.v[1].v[3],
-        value.v[2].v[0],
-        value.v[2].v[1],
-        value.v[2].v[2],
-        value.v[2].v[3],
-        value.v[3].v[0],
-        value.v[3].v[1],
-        value.v[3].v[2],
-        value.v[3].v[3],
-    };
-    _uniformMatrix4fv(uniform, if (transpose) 1 else 0, &mat, mat.len);
+    _uniformMatrix4fv(uniform, if (transpose) 1 else 0, @ptrCast(&value), 16);
 }
 pub extern fn uniform1f(uniform: *anyopaque, value: f32) void;
 pub extern fn clear(mask: i32) void;
 pub extern fn enable(cap: GLEnum_EnableDisable) void;
 
 pub extern fn drawElements(mode: GLEnum_RenderPrimitive, count: i32, type: GLEnum_DataType, offset: i32) void;
+
+pub extern fn drawElementsInstanced(mode: GLEnum_RenderPrimitive, count: i32, type: GLEnum_DataType, offset: i32, instanceCount: i32) void;
+pub extern fn vertexAttribDivisor(index: i32, divisor: i32) void;
