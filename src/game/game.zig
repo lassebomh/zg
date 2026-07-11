@@ -156,14 +156,13 @@ const compFragmentSource =
     \\uniform float uFar;
     \\uniform vec2 uResolution;
     \\
-    \\#define COLOR_QUANTIZATION 6.0
+    \\#define COLOR_QUANTIZATION 5.0
     \\#define EDGE_STRENGTH 1.0
     \\
     \\in vec2 vUV;
     \\out vec4 fragColor;
     \\
-    \\// ── Bayer 4x4 threshold ──────────────────────────────
-    \\float bayerThreshold(vec2 pos) {
+    \\float bayer4x4Threshold(vec2 pos) {
     \\  int x = int(mod(pos.x, 4.0));
     \\  int y = int(mod(pos.y, 4.0));
     \\  int index = x + y * 4;
@@ -180,7 +179,7 @@ const compFragmentSource =
     \\}
     \\
     \\vec3 ditherColor(vec3 color, vec2 fragCoord, float levels) {
-    \\  float threshold = bayerThreshold(fragCoord);
+    \\  float threshold = bayer4x4Threshold(fragCoord);
     \\  vec3 stepped = color * (levels - 1.0) + (threshold - 0.5);
     \\  return floor(clamp(stepped, 0.0, levels - 1.0) + 0.5) / (levels - 1.0);
     \\}
@@ -195,8 +194,13 @@ const compFragmentSource =
     \\  float diff = 0.0;
     \\  diff += clamp(getDepth( 1, 0) - depth, 0.0, 1.0);
     \\  diff += clamp(getDepth(-1, 0) - depth, 0.0, 1.0);
-    \\  diff += clamp(getDepth( 0, 1) - depth, 0.0, 1.0);
     \\  diff += clamp(getDepth( 0,-1) - depth, 0.0, 1.0);
+    \\  diff += clamp(getDepth( 0, 1) - depth, 0.0, 1.0);
+    \\  diff += clamp(getDepth( 1, 1) - depth, 0.0, 1.0) / 24.0;
+    \\  diff += clamp(getDepth(-1, -1) - depth, 0.0, 1.0) / 24.0;
+    \\  diff += clamp(getDepth( 1, -1) - depth, 0.0, 1.0) / 24.0;
+    \\  diff += clamp(getDepth(-1, 1) - depth, 0.0, 1.0) / 24.0;
+    \\
     \\  return floor(smoothstep(0.01, 0.02, diff) * 2.0) / 2.0;
     \\}
     \\
@@ -472,8 +476,8 @@ pub const Render = struct {
 
         gl.useProgram(this.sceneProgram);
 
-        const w = 100;
-        const h = 100;
+        const w = 10;
+        const h = 10;
 
         for (0..w) |ux| {
             for (0..h) |uy| {
