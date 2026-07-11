@@ -99,15 +99,18 @@ const vertexSource =
     \\
     \\in mat4 model;
     \\in vec3 position;
+    \\in vec3 normal;
     \\in vec3 color;
     \\
     \\out vec3 vColor;
+    \\out float vBrightness;
     \\
     \\uniform mat4 uProjection;
     \\uniform mat4 uView;
     \\
     \\void main() {
     \\  vColor = color;
+    \\  vBrightness = max(dot(vec3(0, -1, 0), normal), 0.0);
     \\  gl_Position = uProjection * uView * model * vec4(position, 1.0);
     \\}
 ;
@@ -116,9 +119,8 @@ const fragmentSource =
     \\#version 300 es
     \\precision mediump float;
     \\
-    \\// uniform float uTime;
-    \\
     \\in vec3 vColor;
+    \\in float vBrightness;
     \\
     \\out vec4 fragColor;
     \\
@@ -139,9 +141,14 @@ pub const Render = struct {
     uView: *anyopaque = undefined,
 
     aModels: *anyopaque = undefined,
+
     aColors: *anyopaque = undefined,
+
     bVertPos: *anyopaque = undefined,
     bVertIdxs: *anyopaque = undefined,
+
+    bNormals: *anyopaque = undefined,
+    bNormalIdxs: *anyopaque = undefined,
 
     tempObj: ObjMesh = undefined,
 
@@ -178,6 +185,18 @@ pub const Render = struct {
             gl.enableVertexAttribArray(loc);
             gl.vertexAttribPointer(loc, 3, .FLOAT, false, 0, 0);
             gl.vertexAttribDivisor(loc, 0);
+        }
+        {
+            // this.bNormals = gl.createBuffer();
+            // gl.bindBuffer(.ARRAY_BUFFER, this.bNormals);
+
+            // this.bNormalIdxs = gl.createBuffer();
+            // gl.bindBuffer(.ELEMENT_ARRAY_BUFFER, this.bNormalIdxs);
+
+            // const loc = gl.getAttribLocation(this.program, "normal");
+            // gl.enableVertexAttribArray(loc);
+            // gl.vertexAttribPointer(loc, 3, .FLOAT, false, 0, 0);
+            // gl.vertexAttribDivisor(loc, 0);
         }
 
         {
@@ -243,6 +262,12 @@ pub const Render = struct {
 
         gl.bindBuffer(.ELEMENT_ARRAY_BUFFER, this.bVertIdxs);
         gl.bufferDataU32(.ELEMENT_ARRAY_BUFFER, obj.face_vert_idxs, .STATIC_DRAW);
+
+        // gl.bindBuffer(.ARRAY_BUFFER, this.bNormals);
+        // gl.bufferDataF32(.ARRAY_BUFFER, obj.normals, .STATIC_DRAW);
+
+        // gl.bindBuffer(.ELEMENT_ARRAY_BUFFER, this.bNormalIdxs);
+        // gl.bufferDataU32(.ELEMENT_ARRAY_BUFFER, obj.face_normal_idxs, .STATIC_DRAW);
 
         gl.bindBuffer(.ARRAY_BUFFER, this.aColors);
         gl.bufferDataV3(.ARRAY_BUFFER, &colors, .STATIC_DRAW);
