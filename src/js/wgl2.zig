@@ -1,3 +1,5 @@
+const m = @import("../math/main.zig");
+
 pub const GLEnum_ClearBuffer = enum(i32) {
     DEPTH_BUFFER_BIT = 0x00000100,
     STENCIL_BUFFER_BIT = 0x00000400,
@@ -678,6 +680,9 @@ extern fn _bufferDataf(target: GLEnum_Buffer, dataPtr: [*]const f32, dataLen: i3
 pub fn bufferDataF32(target: GLEnum_Buffer, data: []const f32, usage: GLEnum_Buffer) void {
     _bufferDataf(target, data.ptr, @intCast(data.len), usage);
 }
+pub fn bufferDataV3(target: GLEnum_Buffer, data: []const m.Vec3, usage: GLEnum_Buffer) void {
+    _bufferDataf(target, @ptrCast(data.ptr), @intCast(data.len * 3), usage);
+}
 pub fn bufferDataM4x4(target: GLEnum_Buffer, data: []const m.Mat4x4, usage: GLEnum_Buffer) void {
     _bufferDataf(target, @ptrCast(data.ptr), @intCast(data.len * 16), usage);
 }
@@ -705,8 +710,6 @@ extern fn _getUniformLocation(program: *anyopaque, namePtr: [*]const u8, nameLen
 pub fn getUniformLocation(program: *anyopaque, name: []const u8) *anyopaque {
     return _getUniformLocation(program, name.ptr, @intCast(name.len));
 }
-
-const m = @import("../math/main.zig");
 
 extern fn _uniformMatrix4fv(uniform: *anyopaque, transpose: i32, valuePtr: [*]const f32, valueLen: i32) void;
 pub fn uniformMatrix4fv(uniform: *anyopaque, transpose: bool, value: m.Mat4x4) void {

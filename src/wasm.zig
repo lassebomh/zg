@@ -1,13 +1,12 @@
 const std = @import("std");
-const lib = @import("./lib/root.zig");
-const v2 = lib.v2;
-
-const Input = @import("./js/inputs.zig").Input;
-const debug = @import("./js/debug.zig");
-const game = @import("./game/root.zig");
-
 const wal = std.heap.wasm_allocator;
 const ArrayList = std.ArrayList;
+
+const game = @import("./game/root.zig");
+const debug = @import("./js/debug.zig");
+const Input = @import("./js/inputs.zig").Input;
+const lib = @import("./lib/root.zig");
+const v2 = lib.v2;
 
 var states: ArrayList(game.State) = .empty;
 
@@ -98,12 +97,12 @@ fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
     // state_right.render(state_left, alpha, screen, peer_id);
 
     if (renderer == null) {
-        renderer = game.Render.create();
+        renderer = try game.Render.create(wal);
     }
 
     var r: *game.Render = &renderer.?;
 
-    r.render();
+    try r.render(wal);
 }
 
 fn pull_input_buffer(itick: i32) !void {

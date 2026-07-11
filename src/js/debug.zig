@@ -13,6 +13,11 @@ pub fn log(comptime fmt: []const u8, args: anytype) void {
     std.heap.wasm_allocator.free(slice);
 }
 
+pub fn logScalar(arg: anytype) void {
+    if (!allow_log) return;
+    log("{any}", .{arg});
+}
+
 pub fn clear() void {
     js_clear();
 }
