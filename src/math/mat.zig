@@ -1,11 +1,10 @@
 const std = @import("std");
 
+const gpu_types = @import("gpu.zig");
 const math = @import("main.zig");
 const testing = math.testing;
-
-const gpu_types = @import("gpu.zig");
-const vec = @import("vec.zig");
 const quat = @import("quat.zig");
+const vec = @import("vec.zig");
 
 pub fn Mat2x2(
     comptime Scalar: type,
@@ -389,6 +388,39 @@ pub fn Mat4x4(
             } };
         }
 
+        pub fn normalMatrix(self: Matrix) Matrix {
+            const a00 = self.v[0].v[0];
+            const a01 = self.v[0].v[1];
+            const a02 = self.v[0].v[2];
+            const a10 = self.v[1].v[0];
+            const a11 = self.v[1].v[1];
+            const a12 = self.v[1].v[2];
+            const a20 = self.v[2].v[0];
+            const a21 = self.v[2].v[1];
+            const a22 = self.v[2].v[2];
+
+            const c00 = a11 * a22 - a12 * a21;
+            const c01 = a12 * a20 - a10 * a22;
+            const c02 = a10 * a21 - a11 * a20;
+
+            const c10 = a02 * a21 - a01 * a22;
+            const c11 = a00 * a22 - a02 * a20;
+            const c12 = a01 * a20 - a00 * a21;
+
+            const c20 = a01 * a12 - a02 * a11;
+            const c21 = a02 * a10 - a00 * a12;
+            const c22 = a00 * a11 - a01 * a10;
+
+            const inv_det = 1.0 / (a00 * c00 + a01 * c01 + a02 * c02);
+
+            return Matrix.init(
+                &Vec.init(c00 * inv_det, c10 * inv_det, c20 * inv_det, 0),
+                &Vec.init(c01 * inv_det, c11 * inv_det, c21 * inv_det, 0),
+                &Vec.init(c02 * inv_det, c12 * inv_det, c22 * inv_det, 0),
+                &Vec.init(0, 0, 0, 1),
+            );
+        }
+
         /// Constructs a 3D matrix which scales each dimension by the given vector.
         pub inline fn scale(s: math.Vec3) Matrix {
             return init(
@@ -554,7 +586,7 @@ pub fn Mat4x4(
         ) Matrix {
             const f = 1.0 / @tan(v.fov / 2.0);
             var p = Matrix.ident;
-            p = p.mul(&Matrix.scale(math.vec3(
+            p = p.mul(.scale(math.vec3(
                 f / v.aspect, // scale X by focal length adjusted for aspect ratio
                 f, // scale Y by focal length
                 -(v.far + v.near) / (v.far - v.near), // scale Z to map [near, far] into [-1, +1]
@@ -589,7 +621,7 @@ pub fn Mat4x4(
 pub fn MatShared(comptime RowVec: type, comptime ColVec: type, comptime Matrix: type) type {
     return struct {
         /// Matrix multiplication a*b
-        pub inline fn mul(a: *const Matrix, b: *const Matrix) Matrix {
+        pub inline fn mul(a: Matrix, b: Matrix) Matrix {
             @setEvalBranchQuota(10000);
             var result: Matrix = undefined;
             inline for (0..Matrix.rows) |row| {

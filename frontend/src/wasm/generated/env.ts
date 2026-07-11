@@ -1,6 +1,6 @@
 // AUTO-GENERATED
 
-export type opaque_ptr = { readonly _: unique symbol};
+export type opaque_ptr = { readonly _: unique symbol };
 
 export interface WasmFnExports {
   /**
@@ -34,6 +34,17 @@ export interface WasmFnExports {
 }
 
 export interface WasmEnv {
+  /**
+   * @param target GLEnum_FramebufferOrRenderbuffer
+   * @param framebuffer *anyopaque
+   * @returns void
+   */
+  _bindFramebuffer(target: number, framebuffer: opaque_ptr): void;
+  /**
+   * @param vao *anyopaque
+   * @returns void
+   */
+  _bindVertexArray(vao: opaque_ptr): void;
   /**
    * @param target GLEnum_Buffer
    * @param dataPtr [*]const f32
@@ -72,6 +83,15 @@ export interface WasmEnv {
    */
   _shaderSource(shader: opaque_ptr, sourcePtr: number, sourceLen: number): void;
   /**
+   * @param target GLEnum_FramebufferOrRenderbuffer
+   * @returns void
+   */
+  _unbindFramebuffer(target: number): void;
+  /**
+   * @returns void
+   */
+  _unbindVertexArray(): void;
+  /**
    * @param uniform *anyopaque
    * @param transpose i32
    * @param valuePtr [*]const f32
@@ -88,7 +108,19 @@ export interface WasmEnv {
    * @param offset i32
    * @returns void
    */
-  _vertexAttribPointer(index: number, size: number, type: number, normalized: number, stride: number, offset: number): void;
+  _vertexAttribPointer(
+    index: number,
+    size: number,
+    type: number,
+    normalized: number,
+    stride: number,
+    offset: number,
+  ): void;
+  /**
+   * @param target GLEnum_Texture
+   * @returns void
+   */
+  activeTexture(target: number): void;
   /**
    * @param program *anyopaque
    * @param shader *anyopaque
@@ -102,10 +134,11 @@ export interface WasmEnv {
    */
   bindBuffer(target: number, buffer: opaque_ptr): void;
   /**
-   * @param vao *anyopaque
+   * @param target GLEnum_Texture
+   * @param texture *anyopaque
    * @returns void
    */
-  bindVertexArray(vao: opaque_ptr): void;
+  bindTexture(target: number, texture: opaque_ptr): void;
   /**
    * @param mask i32
    * @returns void
@@ -123,6 +156,10 @@ export interface WasmEnv {
   /**
    * @returns *anyopaque
    */
+  createFrameBuffer(): opaque_ptr;
+  /**
+   * @returns *anyopaque
+   */
   createProgram(): opaque_ptr;
   /**
    * @param shaderType GLEnum_Shader
@@ -132,7 +169,16 @@ export interface WasmEnv {
   /**
    * @returns *anyopaque
    */
+  createTexture(): opaque_ptr;
+  /**
+   * @returns *anyopaque
+   */
   createVertexArray(): opaque_ptr;
+  /**
+   * @param cap GLEnum_EnableDisable
+   * @returns void
+   */
+  disable(cap: number): void;
   /**
    * @param mode GLEnum_RenderPrimitive
    * @param first i32
@@ -175,6 +221,15 @@ export interface WasmEnv {
    */
   flush_commands(commandsTypesPtr: number, commandsArgsPtr: number, commandsLen: number): void;
   /**
+   * @param target GLEnum_FramebufferOrRenderbuffer
+   * @param attachment GLEnum_FramebufferOrRenderbuffer
+   * @param textarget GLEnum_Texture
+   * @param texture *anyopaque
+   * @param level i32
+   * @returns void
+   */
+  framebufferTexture2D(target: number, attachment: number, textarget: number, texture: opaque_ptr, level: number): void;
+  /**
    * @returns void
    */
   js_clear(): void;
@@ -190,11 +245,52 @@ export interface WasmEnv {
    */
   linkProgram(program: opaque_ptr): void;
   /**
+   * @param target GLEnum_Texture
+   * @param level i32
+   * @param internalformat GLEnum_Texture
+   * @param width i32
+   * @param height i32
+   * @param border i32
+   * @param format GLEnum_PixelFormat
+   * @param type GLEnum_DataType
+   * @returns void
+   */
+  texImage2D(
+    target: number,
+    level: number,
+    internalformat: number,
+    width: number,
+    height: number,
+    border: number,
+    format: number,
+    type: number,
+  ): void;
+  /**
+   * @param target GLEnum_Texture
+   * @param pname GLEnum_Texture
+   * @param param GLEnum_Texture
+   * @returns void
+   */
+  texParameteri(target: number, pname: number, param: number): void;
+  /**
    * @param uniform *anyopaque
    * @param value f32
    * @returns void
    */
   uniform1f(uniform: opaque_ptr, value: number): void;
+  /**
+   * @param uniform *anyopaque
+   * @param value i32
+   * @returns void
+   */
+  uniform1i(uniform: opaque_ptr, value: number): void;
+  /**
+   * @param uniform *anyopaque
+   * @param x f32
+   * @param y f32
+   * @returns void
+   */
+  uniform2f(uniform: opaque_ptr, x: number, y: number): void;
   /**
    * @param program *anyopaque
    * @returns void
@@ -206,4 +302,12 @@ export interface WasmEnv {
    * @returns void
    */
   vertexAttribDivisor(index: number, divisor: number): void;
+  /**
+   * @param x i32
+   * @param y i32
+   * @param w i32
+   * @param h i32
+   * @returns void
+   */
+  viewport(x: number, y: number, w: number, h: number): void;
 }

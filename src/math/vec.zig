@@ -1,9 +1,9 @@
 const std = @import("std");
 
-const math = @import("main.zig");
-const testing = math.testing;
 const gpu_types = @import("gpu.zig");
 const mat = @import("mat.zig");
+const math = @import("main.zig");
+const testing = math.testing;
 const quat = @import("quat.zig");
 
 pub const VecComponent = enum { x, y, z, w };
@@ -247,6 +247,38 @@ pub fn Vec4(comptime Scalar: type) type {
                 }
             }
             return .{ .v = result };
+        }
+        pub inline fn fromHsl(h: Scalar, s: Scalar, l: Scalar, a: Scalar) VecN {
+            const c = (1.0 - @abs(2.0 * l - 1.0)) * s;
+            const hp = @mod(h, 1) * 6.0; // h normalized 0-1, map to 0-6
+            const _x = c * (1.0 - @abs(@mod(hp, 2.0) - 1.0));
+            const m = l - c * 0.5;
+
+            var r: Scalar = 0;
+            var g: Scalar = 0;
+            var b: Scalar = 0;
+
+            if (hp < 1.0) {
+                r = c;
+                g = _x;
+            } else if (hp < 2.0) {
+                r = _x;
+                g = c;
+            } else if (hp < 3.0) {
+                g = c;
+                b = _x;
+            } else if (hp < 4.0) {
+                g = _x;
+                b = c;
+            } else if (hp < 5.0) {
+                r = _x;
+                b = c;
+            } else {
+                r = c;
+                b = _x;
+            }
+
+            return .init(r + m, g + m, b + m, a);
         }
 
         pub const add = Shared.add;

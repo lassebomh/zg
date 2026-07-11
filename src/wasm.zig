@@ -33,22 +33,17 @@ export fn jsGetPeerInputsLen(peer_id: i32) usize {
 }
 
 export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height: i32, peer_id: i32) void {
-    const screen: v2.Value = .{
-        @floatFromInt(screen_width),
-        @floatFromInt(screen_height),
-    };
-
-    render(itick, alpha, screen, peer_id) catch |e| debug.fail(e);
+    if (screen_width == 0 or screen_height == 0) return;
+    render(itick, alpha, screen_width, screen_height, peer_id) catch |e| debug.fail(e);
 }
 
 export fn jsPullInputBuffer(itick: i32) void {
     pull_input_buffer(itick) catch |e| debug.fail(e);
 }
 
-fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
-    _ = alpha;
-    _ = screen;
-    _ = peer_id;
+fn render(tick: i32, alpha: f32, width: i32, height: i32, peer_id: i32) !void {
+    _ = alpha; // autofix
+    _ = peer_id; // autofix
 
     const utick: usize = @intCast(tick);
 
@@ -97,12 +92,12 @@ fn render(tick: i32, alpha: f32, screen: v2.Value, peer_id: i32) !void {
     // state_right.render(state_left, alpha, screen, peer_id);
 
     if (renderer == null) {
-        renderer = try game.Render.create(wal);
+        renderer = try game.Render.create(wal, width, height);
     }
 
     var r: *game.Render = &renderer.?;
 
-    try r.render(wal);
+    try r.render(wal, width, height);
 }
 
 fn pull_input_buffer(itick: i32) !void {

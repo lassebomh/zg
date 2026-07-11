@@ -356,6 +356,8 @@ pub const GLEnum_Texture = enum(i32) {
     CLAMP_TO_EDGE = 0x812F,
     MIRRORED_REPEAT = 0x8370,
 
+    DEPTH_COMPONENT24 = 0x81A6,
+
     // Webgl2:
 
     RED = 0x1903,
@@ -529,7 +531,7 @@ pub const GLEnum_FramebufferOrRenderbuffer = enum(i32) {
     FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE = 0x8217,
     FRAMEBUFFER_DEFAULT = 0x8218,
     DEPTH24_STENCIL8 = 0x88F0,
-    DRAW_FRAMEBUFFER_BINDING = 0x8CA6,
+    // DRAW_FRAMEBUFFER_BINDING = 0x8CA6,
     READ_FRAMEBUFFER = 0x8CA8,
     DRAW_FRAMEBUFFER = 0x8CA9,
     READ_FRAMEBUFFER_BINDING = 0x8CAA,
@@ -672,7 +674,15 @@ pub extern fn createProgram() *anyopaque;
 pub extern fn attachShader(program: *anyopaque, shader: *anyopaque) void;
 pub extern fn linkProgram(program: *anyopaque) void;
 pub extern fn createVertexArray() *anyopaque;
-pub extern fn bindVertexArray(vao: *anyopaque) void;
+extern fn _bindVertexArray(vao: *anyopaque) void;
+extern fn _unbindVertexArray() void;
+pub fn bindVertexArray(vao: ?*anyopaque) void {
+    if (vao != null) {
+        _bindVertexArray(vao.?);
+    } else {
+        _unbindVertexArray();
+    }
+}
 
 pub extern fn createBuffer() *anyopaque;
 pub extern fn bindBuffer(target: GLEnum_Buffer, buffer: *anyopaque) void;
@@ -680,8 +690,11 @@ extern fn _bufferDataf(target: GLEnum_Buffer, dataPtr: [*]const f32, dataLen: i3
 pub fn bufferDataF32(target: GLEnum_Buffer, data: []const f32, usage: GLEnum_Buffer) void {
     _bufferDataf(target, data.ptr, @intCast(data.len), usage);
 }
-pub fn bufferDataV3(target: GLEnum_Buffer, data: []const m.Vec3, usage: GLEnum_Buffer) void {
+pub fn bufferDataV3(target: GLEnum_Buffer, data: [][3]f32, usage: GLEnum_Buffer) void {
     _bufferDataf(target, @ptrCast(data.ptr), @intCast(data.len * 3), usage);
+}
+pub fn bufferDataV4(target: GLEnum_Buffer, data: []const m.Vec4, usage: GLEnum_Buffer) void {
+    _bufferDataf(target, @ptrCast(data.ptr), @intCast(data.len * 4), usage);
 }
 pub fn bufferDataM4x4(target: GLEnum_Buffer, data: []const m.Mat4x4, usage: GLEnum_Buffer) void {
     _bufferDataf(target, @ptrCast(data.ptr), @intCast(data.len * 16), usage);
@@ -716,10 +729,34 @@ pub fn uniformMatrix4fv(uniform: *anyopaque, transpose: bool, value: m.Mat4x4) v
     _uniformMatrix4fv(uniform, if (transpose) 1 else 0, @ptrCast(&value), 16);
 }
 pub extern fn uniform1f(uniform: *anyopaque, value: f32) void;
+pub extern fn uniform1i(uniform: *anyopaque, value: i32) void;
+pub extern fn uniform2f(uniform: *anyopaque, x: f32, y: f32) void;
+
 pub extern fn clear(mask: i32) void;
 pub extern fn enable(cap: GLEnum_EnableDisable) void;
+pub extern fn disable(cap: GLEnum_EnableDisable) void;
 
 pub extern fn drawElements(mode: GLEnum_RenderPrimitive, count: i32, type: GLEnum_DataType, offset: i32) void;
 
 pub extern fn drawElementsInstanced(mode: GLEnum_RenderPrimitive, count: i32, type: GLEnum_DataType, offset: i32, instanceCount: i32) void;
 pub extern fn vertexAttribDivisor(index: i32, divisor: i32) void;
+
+pub extern fn createTexture() *anyopaque;
+pub extern fn bindTexture(target: GLEnum_Texture, texture: *anyopaque) void;
+pub extern fn texParameteri(target: GLEnum_Texture, pname: GLEnum_Texture, param: GLEnum_Texture) void;
+pub extern fn createFrameBuffer() *anyopaque;
+
+extern fn _bindFramebuffer(target: GLEnum_FramebufferOrRenderbuffer, framebuffer: *anyopaque) void;
+extern fn _unbindFramebuffer(target: GLEnum_FramebufferOrRenderbuffer) void;
+pub fn bindFramebuffer(target: GLEnum_FramebufferOrRenderbuffer, framebuffer: ?*anyopaque) void {
+    if (framebuffer != null) {
+        _bindFramebuffer(target, framebuffer.?);
+    } else {
+        _unbindFramebuffer(target);
+    }
+}
+pub extern fn framebufferTexture2D(target: GLEnum_FramebufferOrRenderbuffer, attachment: GLEnum_FramebufferOrRenderbuffer, textarget: GLEnum_Texture, texture: *anyopaque, level: i32) void;
+pub extern fn activeTexture(target: GLEnum_Texture) void;
+pub extern fn texImage2D(target: GLEnum_Texture, level: i32, internalformat: GLEnum_Texture, width: i32, height: i32, border: i32, format: GLEnum_PixelFormat, type: GLEnum_DataType) void;
+
+pub extern fn viewport(x: i32, y: i32, w: i32, h: i32) void;

@@ -32,8 +32,11 @@
     bindBuffer(target, buffer) {
       gl.bindBuffer(target, opaque.get(buffer));
     },
-    bindVertexArray(vao) {
+    _bindVertexArray(vao) {
       gl.bindVertexArray(opaque.get(vao));
+    },
+    _unbindVertexArray() {
+      gl.bindVertexArray(null);
     },
     _bufferDataf(target, dataPtr, dataLen, usage) {
       gl.bufferData(target, new Float32Array(wasm.memory.buffer, dataPtr, dataLen), usage);
@@ -80,7 +83,7 @@
     _getUniformLocation(program, namePtr, nameLen) {
       const name = readString(namePtr, nameLen);
       const p = opaque.get(program);
-      const uniform = gl.getUniformLocation(p, name) ?? fail();
+      const uniform = gl.getUniformLocation(p, name) ?? fail(`Uniform "${name}" not found`);
       return opaque.create(uniform);
     },
     _uniformMatrix4fv(uniform, transpose, valuePtr, valueLen) {
@@ -93,11 +96,50 @@
     enable(cap) {
       gl.enable(cap);
     },
+    disable(cap) {
+      gl.disable(cap);
+    },
     uniform1f(uniform, value) {
       gl.uniform1f(opaque.get(uniform), value);
     },
+    uniform2f(uniform, x, y) {
+      gl.uniform2f(opaque.get(uniform), x, y);
+    },
     clear(mask) {
       gl.clear(mask);
+    },
+    createTexture() {
+      return opaque.create(gl.createTexture());
+    },
+    bindTexture(target, texture) {
+      gl.bindTexture(target, opaque.get(texture));
+    },
+    texParameteri(target, pname, param) {
+      gl.texParameteri(target, pname, param);
+    },
+    createFrameBuffer() {
+      return opaque.create(gl.createFramebuffer());
+    },
+    _bindFramebuffer(target, framebuffer) {
+      gl.bindFramebuffer(target, opaque.get(framebuffer));
+    },
+    _unbindFramebuffer(target) {
+      gl.bindFramebuffer(target, null);
+    },
+    framebufferTexture2D(target, attachment, textarget, texture, level) {
+      gl.framebufferTexture2D(target, attachment, textarget, opaque.get(texture), level);
+    },
+    activeTexture(texture) {
+      gl.activeTexture(texture);
+    },
+    uniform1i(uniform, value) {
+      gl.uniform1i(opaque.get(uniform), value);
+    },
+    texImage2D(target, level, internalformat, width, height, border, format, type) {
+      gl.texImage2D(target, level, internalformat, width, height, border, format, type, null);
+    },
+    viewport(x, y, w, h) {
+      gl.viewport(x, y, w, h);
     },
     js_log_str(ptr, length) {
       const dec = new TextDecoder();
@@ -151,8 +193,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { onResize } from "./canvas";
-  import { abortSignal, fail, now } from "./lib/utils.js";
   import { createInputProxy, InputByteLength, inputControl } from "./inputs";
+  import { abortSignal, fail, now } from "./lib/utils.js";
 
   const PLAYER_COLORS = ["#ef4444", "#3b9eed", "#45b358", "#ebc934"];
 
@@ -214,7 +256,8 @@
 
   onMount(() => {
     const { signal: destroySignal, abort: destroy } = abortSignal();
-    gl = gameCanvas.getContext("webgl2") ?? fail();
+    gl = gameCanvas.getContext("webgl2", { antialias: false }) ?? fail();
+    gameCanvas.style.imageRendering = "pixelated";
 
     inputControl(gameCanvas, inputProxy, destroySignal);
 
@@ -277,13 +320,14 @@
     onResize(
       gameCanvas,
       (width, height) => {
-        gameCanvas.width = width;
-        gameCanvas.height = height;
-        gameWidth = width;
-        gameHeight = height;
+        const downscale = 4;
+        gameWidth = Math.floor(width / downscale);
+        gameHeight = Math.floor(height / downscale);
+        gameCanvas.width = gameWidth;
+        gameCanvas.height = gameHeight;
         cancelAnimationFrame(frameRequest);
         render();
-        gl.viewport(0, 0, width, height);
+        gl.viewport(0, 0, gameWidth, gameHeight);
       },
       destroySignal,
     );

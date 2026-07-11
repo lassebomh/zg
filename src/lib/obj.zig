@@ -49,9 +49,9 @@ pub const Face = struct {
 };
 
 pub const ObjMesh = struct {
-    verts: []f32,
-    normals: []f32,
-    uvs: []f32,
+    verts: []m.Vec3,
+    normals: []m.Vec3,
+    uvs: []m.Vec2,
 
     face_vert_idxs: []u32,
     face_normal_idxs: []u32,
@@ -63,9 +63,9 @@ pub const ObjMesh = struct {
     ) !ObjMesh {
         var lines = std.mem.splitScalar(u8, content, '\n');
 
-        var verts: std.ArrayList(f32) = .empty;
-        var normals: std.ArrayList(f32) = .empty;
-        var uvs: std.ArrayList(f32) = .empty;
+        var verts: std.ArrayList(m.Vec3) = .empty;
+        var normals: std.ArrayList(m.Vec3) = .empty;
+        var uvs: std.ArrayList(m.Vec2) = .empty;
 
         var face_vert_idxs: std.ArrayList(u32) = .empty;
         var face_normal_idxs: std.ArrayList(u32) = .empty;
@@ -88,21 +88,21 @@ pub const ObjMesh = struct {
                 .use_material => continue,
 
                 .vertex => {
-                    const vert = try (&verts).addManyAsArray(gpa, 3);
-                    vert[0] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidVertex);
-                    vert[1] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidVertex);
-                    vert[2] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidVertex);
+                    const vert = try (&verts).addOne(gpa);
+                    vert.*.v[0] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidVertex);
+                    vert.*.v[1] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidVertex);
+                    vert.*.v[2] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidVertex);
                 },
                 .normal => {
-                    const norm = try (&normals).addManyAsArray(gpa, 3);
-                    norm[0] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidNormal);
-                    norm[1] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidNormal);
-                    norm[2] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidNormal);
+                    const norm = try (&normals).addOne(gpa);
+                    norm.*.v[0] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidNormal);
+                    norm.*.v[1] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidNormal);
+                    norm.*.v[2] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidNormal);
                 },
                 .texture => {
-                    const tex = try (&uvs).addManyAsArray(gpa, 2);
-                    tex[0] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidUV);
-                    tex[1] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidUV);
+                    const tex = try (&uvs).addOne(gpa);
+                    tex.*.v[0] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidUV);
+                    tex.*.v[1] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidUV);
                 },
                 .face => {
                     var face_verts: [4]u32 = undefined;
