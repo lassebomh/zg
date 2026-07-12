@@ -564,12 +564,12 @@ pub fn Mat4x4(
             far: f32,
         }) Matrix {
             var p = Matrix.ident;
-            p = p.mul(&Matrix.translate(math.vec3(
+            p = p.mul(Matrix.translate(math.vec3(
                 (v.right + v.left) / (v.left - v.right), // translate X so that the middle of (left, right) maps to x=0 in clip space
                 (v.top + v.bottom) / (v.bottom - v.top), // translate Y so that the middle of (bottom, top) maps to y=0 in clip space
                 (v.far + v.near) / (v.near - v.far), // translate Z so that the middle of (near, far) maps to z=0 in clip space
             )));
-            p = p.mul(&Matrix.scale(math.vec3(
+            p = p.mul(Matrix.scale(math.vec3(
                 2 / (v.right - v.left), // scale X so that [left, right] has a 2 unit range, e.g. [-1, +1]
                 2 / (v.top - v.bottom), // scale Y so that [bottom, top] has a 2 unit range, e.g. [-1, +1]
                 -2 / (v.far - v.near), // scale Z so that [near, far] maps to [-1, +1]

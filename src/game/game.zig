@@ -382,8 +382,8 @@ pub const Render = struct {
             .width = width,
             .height = height,
 
-            .near = 0.1,
-            .far = 30,
+            .near = 0.01,
+            .far = 50,
         };
 
         this.colorTex = gl.createTexture();
@@ -496,15 +496,20 @@ pub const Render = struct {
             }
         }
 
-        try this.cube.add(gpa, m.Mat4x4.translate(.init(0, -5, 0)).mul(.scale(.init(10, 1, 10))), .init(1, 1, 1, 1));
+        const aspectRatio = @as(f32, @floatFromInt(width)) / @as(f32, @floatFromInt(height));
+        try this.cube.add(gpa, m.Mat4x4.translate(.init(0, -3, 0)).mul(.scale(.init(10, 1, 10))), .init(1, 1, 1, 1));
 
-        // const uProj = m.Mat4x4.projection2D(.{ .left = -30, .right = 30, .bottom = -30, .top = 30, .near = -1200, .far = 1200 });
-        const uProj = m.Mat4x4.perspective(.{ .fov = 1, .aspect = @as(f32, @floatFromInt(width)) / @as(f32, @floatFromInt(height)), .near = this.near, .far = this.far });
+        const uProj = m.Mat4x4.projection2D(.{ .left = -6 * aspectRatio, .right = 6 * aspectRatio, .bottom = -6, .top = 6, .near = this.near, .far = this.far });
+        // const uProj = m.Mat4x4.perspective(.{ .fov = 1.5, .aspect = aspectRatio, .near = this.near, .far = this.far });
         gl.uniformMatrix4fv(this.uProjection, false, uProj);
 
+        // const uView = m.Mat4x4.translate(.init(0, 0, -8))
+        //     .mul(.rotateX(@sin(f / 500) / 3 + 0.9))
+        //     .mul(.rotateY(f / 800));
+
         const uView = m.Mat4x4.translate(.init(0, 0, -8))
-            .mul(.rotateX(@sin(f / 500) / 3 + 0.45))
-            .mul(.rotateY(f / 800));
+            .mul(.rotateX(0.05))
+            .mul(.rotateY(0));
 
         gl.uniformMatrix4fv(this.uView, false, uView);
 
@@ -513,7 +518,6 @@ pub const Render = struct {
         this.cube.render();
 
         // composite
-
         gl.bindFramebuffer(.FRAMEBUFFER, null);
         gl.viewport(0, 0, this.width, this.height);
 
