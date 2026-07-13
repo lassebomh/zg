@@ -1,12 +1,12 @@
 const std = @import("std");
-const wal = std.heap.wasm_allocator;
 const ArrayList = std.ArrayList;
+const wal = std.heap.wasm_allocator;
 
 const game = @import("./game/root.zig");
 const debug = @import("./js/debug.zig");
 const Input = @import("./js/inputs.zig").Input;
-const lib = @import("./lib/root.zig");
-const v2 = lib.v2;
+const GLContext = @import("./js/wgl2_context.zig").GLContext;
+const m = @import("./math/main.zig");
 
 var states: ArrayList(game.State) = .empty;
 
@@ -19,7 +19,8 @@ var peers_inputs: [4]ArrayList(Input) = .{
 
 var input_buffer: Input = std.mem.zeroes(Input);
 
-var renderer: ?game.Render = null;
+var ctx: ?GLContext = null;
+var stateRender: ?game.State.Render = null;
 
 export fn jsGetInputBufferPtr() *Input {
     return &input_buffer;
@@ -86,20 +87,18 @@ fn render(tick: i32, alpha: f32, width: i32, height: i32, peer_id: i32) !void {
     }
 
     // const state_left = &states.items[utick];
-    // const state_right = &states.items[utick + 1];
+    const state_right = &states.items[utick + 1];
 
-    // state_right.render(state_left, alpha, screen, peer_id);
+    // state_right.render(ctx, screen, peer_id);
 
-    if (renderer == null) {
-        renderer = try game.Render.create(wal, width, height);
+    if (ctx == null) {
+        ctx = try GLContext.create(wal);
+    }
+    if (stateRender == null) {
+        stateRender = .init(&ctx.?, state_right);
     }
 
-    var r: *game.Render = &renderer.?;
-
-    var ftick: f32 = @floatFromInt(tick);
-    ftick += alpha;
-
-    try r.render(wal, ftick * 2, width, height);
+    try stateRender.?.render(wal, state_right, width, height, tick, alpha);
 }
 
 fn pull_input_buffer(itick: i32) !void {

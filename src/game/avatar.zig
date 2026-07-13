@@ -1,12 +1,11 @@
 const std = @import("std");
-const js = @import("../js/root.zig");
 
-const game = @import("./root.zig");
+const js = @import("../js/root.zig");
 const lib = @import("../lib/root.zig");
 const RGBA = lib.RGBA;
 const v2 = lib.v2;
-
-pub const MaxPlayers = 16;
+const m = @import("../math/main.zig");
+const game = @import("./root.zig");
 
 pub const Avatar = struct {
     id: usize,
@@ -16,16 +15,9 @@ pub const Avatar = struct {
         rstick: v2.Value,
     },
 
-    clockwise: bool,
+    position: m.Vec2,
 
-    limb: struct {
-        head_target: v2.Value,
-        head: game.Box,
-    },
-
-    collision: game.Box,
-
-    pub fn create(id: usize, pos: v2.Value) Avatar {
+    pub fn create(id: usize) Avatar {
         return Avatar{
             .id = id,
             .inputs = .{
@@ -33,62 +25,39 @@ pub const Avatar = struct {
                 .lstick = v2.zero,
                 .rstick = v2.zero,
             },
-            .clockwise = true,
-            .collision = game.Box.init(pos, v2.xy(9, 9)),
-            .limb = .{
-                .head_target = v2.zero,
-                .head = game.Box.init(pos, v2.xy(8, 8)),
-            },
+            .position = .init(0, 0),
         };
     }
 
     pub fn update(this: *Avatar, g: *game.State) void {
-        this.collision.vel[0] += this.inputs.lstick[0] * 0.5;
-        this.collision.vel[0] /= 1.3;
-
-        this.collision.vel[1] += 0.15;
-        if (this.inputs.jump and this.collision.impact[1] < 0) {
-            this.collision.vel[1] = -2;
-        }
-
-        this.collision.update(g);
-
-        if (@abs(this.inputs.lstick[0]) > 0.1) {
-            this.clockwise = this.inputs.lstick[0] > 0;
-        }
-
-        var body_angle: f32 = std.math.atan2(-3, this.collision.vel[0]);
-        js.debug.log("{any}", .{body_angle});
-
-        if (this.inputs.lstick[1] > 0.1) {
-            if (this.clockwise) {
-                body_angle = 0;
-            } else {
-                body_angle = -std.math.pi;
-            }
-        } else {
-            body_angle = std.math.atan2(-5, this.collision.vel[0]);
-        }
-
-        this.limb.head_target = this.collision.cc() + (v2.radians(body_angle) * v2.fill(8));
-
-        const head_target_vel = this.limb.head_target - this.limb.head.cc();
-        this.limb.head.vel = head_target_vel;
-        this.limb.head.update(g);
+        _ = g; // autofix
+        this.position.v[0] += this.inputs.lstick[0] * 0.1;
+        this.position.v[1] += this.inputs.lstick[1] * 0.1;
     }
 
-    pub fn render(this: *Avatar, prev: *Avatar, alpha: f32) void {
-        // js.ctx.beginPath();
-        // js.ctx.save();
-        // defer js.ctx.restore();
-        // js.ctx.strokeStyle(RGBA.fromHex("#ff0000"));
-        // js.ctx.lineWidth(6);
-        // js.ctx.moveTo(v2.lerp(prev.collision.cc(), this.collision.cc(), v2.fill(alpha)) + v2.xy(0, 0));
-        // js.ctx.lineTo(v2.lerp(prev.limb.head.cc(), this.limb.head.cc(), v2.fill(alpha)) + v2.xy(0, 0));
-        // js.ctx.stroke();
-        this.collision.render(prev.collision, RGBA.fromHex("#00ff00"), alpha);
-        this.limb.head.render(prev.limb.head, RGBA.fromHex("#ff0000"), alpha);
-    }
+    pub const Render = struct {
+        id: usize,
+
+        pos: lib.SecondOrder(m.Vec3),
+
+        pub fn init(g: *game.State.Render, avatar: Avatar) Render {
+            _ = g; // autofix
+            return .{
+                .id = avatar.id,
+                .pos = .init(3, 0.1, 0),
+            };
+        }
+
+        pub fn draw(this: *Render, g: *game.State.Render, gpa: std.mem.Allocator) !void {
+            const avatar = g.state.avatars.get(this.id).?;
+
+            this.pos.update(g.dt, .init(avatar.position.x(), 0, avatar.position.y()));
+
+            const model = m.Mat4x4.translate(this.pos.value);
+
+            try g.ctx.cylinder.add(gpa, model, .init(1, 0, 0, 1));
+        }
+    };
 };
 
 pub const Player = struct {
@@ -100,7 +69,7 @@ pub const Player = struct {
     pub fn upsert_avatar(this: *Player, g: *game.State) *Avatar {
         const avatar_id = this.avatar_id orelse init: {
             const avatar = g.avatars.addOne() catch |e| js.debug.fail(e);
-            avatar.* = Avatar.create(avatar.id, v2.xy(0, 0));
+            avatar.* = Avatar.create(avatar.id);
             this.avatar_id = avatar.id;
             break :init avatar.id;
         };

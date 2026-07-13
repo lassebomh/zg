@@ -621,14 +621,31 @@
     id="tracks-canvas"
     class:loop-mode={ui.loopEnabled}
     class:panning={temp.tracksCanvasPanning}
-    onwheel={(e) => {
-      const range = ui.viewEnd - ui.viewStart;
+    // onwheel={(e) => {
+    //   const range = ui.viewEnd - ui.viewStart;
 
-      const tickUnderMouse = ui.viewStart + 0.5 * range;
-      const zoomFactor = e.deltaY > 0 ? 1.3 : 1 / 1.3;
-      const newRange = Math.max(4, Math.min(10000, range * zoomFactor));
-      ui.viewStart = tickUnderMouse - 0.5 * newRange;
-      ui.viewEnd = tickUnderMouse + 0.5 * newRange;
+    //   const tickUnderMouse = ui.viewStart + 0.5 * range;
+    //   const zoomFactor = e.deltaY > 0 ? 1.3 : 1 / 1.3;
+    //   const newRange = Math.max(4, Math.min(10000, range * zoomFactor));
+    //   ui.viewStart = tickUnderMouse - 0.5 * newRange;
+    //   ui.viewEnd = tickUnderMouse + 0.5 * newRange;
+    // }}
+    onwheel={(e) => {
+      // clanker code:
+      e.preventDefault();
+      const zoomSensitivity = 0.0005;
+      const panSensitivity = 0.1;
+      const range = ui.viewEnd - ui.viewStart;
+      // Pan
+      const pan = e.deltaX * (range / tracksCanvas.clientWidth) * panSensitivity;
+      ui.playheadTick += pan;
+      // Zoom
+      const rect = tracksCanvas.getBoundingClientRect();
+      const t = (e.clientX - rect.left) / rect.width;
+      const tick = ui.viewStart + t * range;
+      const newRange = Math.max(4, Math.min(10000, range * Math.exp(e.deltaY * zoomSensitivity)));
+      ui.viewStart = tick - t * newRange;
+      ui.viewEnd = ui.viewStart + newRange;
     }}
     // Pan with mouse drag
     onmousedown={(e) => {

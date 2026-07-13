@@ -1,5 +1,8 @@
 const std = @import("std");
 
+const debug = @import("../js/debug.zig");
+const m = @import("../math/main.zig");
+
 pub const RGBA = extern struct {
     r: u32,
     g: u32,
@@ -24,7 +27,7 @@ pub const RGBA = extern struct {
         const c = (1.0 - @abs(2.0 * l - 1.0)) * s;
         const hp = h / 60.0;
         const x = c * (1.0 - @abs(@mod(hp, 2.0) - 1.0));
-        const m = l - c / 2.0;
+        const _m = l - c / 2.0;
 
         var r: f32 = 0;
         var g: f32 = 0;
@@ -51,9 +54,9 @@ pub const RGBA = extern struct {
         }
 
         return RGBA{
-            .r = @intFromFloat((r + m) * 255.0),
-            .g = @intFromFloat((g + m) * 255.0),
-            .b = @intFromFloat((b + m) * 255.0),
+            .r = @intFromFloat((r + _m) * 255.0),
+            .g = @intFromFloat((g + _m) * 255.0),
+            .b = @intFromFloat((b + _m) * 255.0),
             .alpha = 255,
         };
     }
@@ -107,15 +110,15 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
     const Error = error{OutOfMemory};
 
     const TContainer = struct {
-        const Self = @This();
+        const This = @This();
 
         ids: [capacity]usize, // ids[index] = id
         ixs: [capacity]usize, // ixs[id] = index
         items: [capacity]T,
         len: usize,
 
-        pub fn init() Self {
-            var out = Self{
+        pub fn init() This {
+            var out = This{
                 .ids = undefined,
                 .ixs = undefined,
                 .items = undefined,
@@ -130,7 +133,7 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
             return out;
         }
 
-        pub fn addOne(self: *Self) Error!*T {
+        pub fn addOne(self: *This) Error!*T {
             if (self.len == capacity) {
                 return Error.OutOfMemory;
             }
@@ -142,7 +145,7 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
             return item;
         }
 
-        pub fn get(self: *Self, id: usize) ?*T {
+        pub fn get(self: *This, id: usize) ?*T {
             const index = self.ixs[id];
             if (index >= self.len) {
                 return null;
@@ -150,7 +153,7 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
             return &self.items[index];
         }
 
-        pub fn delete(self: *Self, id: usize) void {
+        pub fn delete(self: *This, id: usize) void {
             const index = self.ixs[id];
             if (index >= self.len) {
                 unreachable;
@@ -171,7 +174,80 @@ pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
 
             self.len -= 1;
         }
+
+        pub fn iter(this: *This) []T {
+            return this.items[0..this.len];
+        }
     };
 
     return TContainer;
+}
+
+pub fn SecondOrder(T: type) type {
+    return struct {
+        const This = @This();
+
+        previous: T,
+        value: T,
+        velocity: T,
+        k1: f32,
+        k2: f32,
+        k3: f32,
+
+        first: bool,
+
+        pub fn init(naturalFreq: f32, dampingRatio: f32, response: f32) This {
+            return .{
+                .k1 = dampingRatio / (std.math.pi * naturalFreq),
+                .k2 = 1 / ((2 * std.math.pi * naturalFreq) * (2 * std.math.pi * naturalFreq)),
+                .k3 = response * dampingRatio / (2 * std.math.pi * naturalFreq),
+                .previous = .init(0, 0, 0),
+                .value = .init(0, 0, 0),
+                .velocity = .init(0, 0, 0),
+                .first = true,
+            };
+        }
+
+        pub fn update(this: *This, dt: f32, newValue: T) void {
+            if (dt == 0) {
+                return;
+            } else if (dt < 0) {
+                this.value = newValue;
+                return;
+            }
+
+            if (this.first) {
+                this.value = newValue;
+                this.previous = newValue;
+                this.first = false;
+            }
+
+            const deltaSeconds = dt / 1000;
+
+            const xd = newValue.sub(&this.previous).divScalar(deltaSeconds);
+
+            const k2_stable = @max(
+                this.k2,
+                deltaSeconds * deltaSeconds * 0.5 + deltaSeconds * this.k1 * 0.5,
+                deltaSeconds * this.k1,
+            );
+
+            this.value = this.value.add(&this.velocity.mulScalar(deltaSeconds));
+
+            const accel = newValue
+                .add(&xd.mulScalar(this.k3))
+                .sub(&this.value)
+                .sub(&this.velocity.mulScalar(this.k1))
+                .divScalar(k2_stable);
+
+            this.velocity = this.velocity.add(&accel.mulScalar(deltaSeconds));
+
+            this.previous = newValue;
+        }
+    };
+}
+
+comptime {
+    _ = SecondOrder(m.Vec3);
+    _ = SecondOrder(m.Vec2);
 }
