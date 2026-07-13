@@ -3,14 +3,12 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
 
-    const mod = b.createModule(.{
-        .root_source_file = b.path("src/wasm.zig"),
-        .target = target,
-    });
-
     const app = b.addExecutable(.{
         .name = "main",
-        .root_module = mod,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/wasm.zig"),
+            .target = target,
+        }),
     });
     app.entry = .disabled;
     app.rdynamic = true;
@@ -19,12 +17,18 @@ pub fn build(b: *std.Build) void {
         .dest_dir = .{ .override = .{ .custom = "../frontend/src/wasm/generated" } },
     });
 
-    // const mach_dep = b.dependency("mach", .{
-    //     .target = target,
-    //     .mach_zig_version = "2026.4.10-mach",
-    // });
-    // // mod.root_module.addImport("mach", mach_dep.module("mach"));
-    // app.root_module.addImport("mach", mach_dep.module("mach"));
+    const app_check = b.addExecutable(.{
+        .name = "main",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/wasm.zig"),
+            .target = target,
+        }),
+    });
+    app_check.entry = .disabled;
+    app_check.rdynamic = true;
+
+    const check = b.step("check", "Check if zig compiles");
+    check.dependOn(&app_check.step);
 
     b.getInstallStep().dependOn(&install_wasm.step);
     {

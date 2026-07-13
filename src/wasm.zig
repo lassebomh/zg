@@ -42,7 +42,6 @@ export fn jsPullInputBuffer(itick: i32) void {
 }
 
 fn render(tick: i32, alpha: f32, width: i32, height: i32, peer_id: i32) !void {
-    _ = alpha; // autofix
     _ = peer_id; // autofix
 
     const utick: usize = @intCast(tick);
@@ -97,7 +96,10 @@ fn render(tick: i32, alpha: f32, width: i32, height: i32, peer_id: i32) !void {
 
     var r: *game.Render = &renderer.?;
 
-    try r.render(wal, width, height);
+    var ftick: f32 = @floatFromInt(tick);
+    ftick += alpha;
+
+    try r.render(wal, ftick * 2, width, height);
 }
 
 fn pull_input_buffer(itick: i32) !void {

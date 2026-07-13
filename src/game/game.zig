@@ -43,12 +43,13 @@ pub const State = struct {
         // update_boxes(&this.boxes);
     }
 
-    pub fn render(this: *State, prev: *State, alpha: f32, screen: v2.Value, peer_id: i32) void {
+    pub fn render(this: *State, ctx: *Render, prev: *State, alpha: f32, screen: v2.Value, peer_id: i32) void {
         _ = this; // autofix
         _ = prev; // autofix
         _ = alpha; // autofix
         _ = screen; // autofix
         _ = peer_id; // autofix
+        _ = ctx; // autofix
 
         // defer js.ctx.flush();
 
@@ -152,8 +153,6 @@ const compFragmentSource =
     \\
     \\uniform sampler2D uColor;
     \\uniform sampler2D uDepth;
-    \\uniform float uNear;
-    \\uniform float uFar;
     \\uniform vec2 uResolution;
     \\
     \\#define COLOR_QUANTIZATION 5.0
@@ -186,8 +185,7 @@ const compFragmentSource =
     \\float getDepth(int offsetX, int offsetY) {
     \\  vec2 invRes = 1.0 / uResolution;
     \\  float depth = texture(uDepth, vUV + vec2(offsetX, offsetY) * invRes).r;
-    \\  float linear = uNear * uFar / (uFar - depth * (uFar - uNear));
-    \\  return (linear - uNear) / (uFar - uNear);
+    \\  return depth;
     \\}
     \\
     \\float depthEdgeIndicator(float depth) {
@@ -196,10 +194,10 @@ const compFragmentSource =
     \\  diff += clamp(getDepth(-1, 0) - depth, 0.0, 1.0);
     \\  diff += clamp(getDepth( 0,-1) - depth, 0.0, 1.0);
     \\  diff += clamp(getDepth( 0, 1) - depth, 0.0, 1.0);
-    \\  diff += clamp(getDepth( 1, 1) - depth, 0.0, 1.0) / 24.0;
-    \\  diff += clamp(getDepth(-1, -1) - depth, 0.0, 1.0) / 24.0;
-    \\  diff += clamp(getDepth( 1, -1) - depth, 0.0, 1.0) / 24.0;
-    \\  diff += clamp(getDepth(-1, 1) - depth, 0.0, 1.0) / 24.0;
+    \\  // diff += clamp(getDepth( 1, 1) - depth, 0.0, 1.0);
+    \\  // diff += clamp(getDepth(-1, -1) - depth, 0.0, 1.0);
+    \\  // diff += clamp(getDepth( 1, -1) - depth, 0.0, 1.0);
+    \\  // diff += clamp(getDepth(-1, 1) - depth, 0.0, 1.0);
     \\
     \\  return floor(smoothstep(0.01, 0.02, diff) * 2.0) / 2.0;
     \\}
@@ -230,6 +228,8 @@ pub const RenderObject = struct {
     models: std.ArrayList(m.Mat4x4) = .empty,
     colors: std.ArrayList(m.Vec4) = .empty,
 
+    elements: i32 = 0,
+
     data: []f32 = undefined,
     idxs: []u32 = undefined,
 
@@ -251,10 +251,13 @@ pub const RenderObject = struct {
         };
         gl.bindVertexArray(this.vao);
 
+        // construct the attribute data.
+
         var idxs: std.ArrayList(u32) = .empty;
         var data: std.ArrayList(f32) = .empty;
 
         var hashmap: std.AutoHashMap([6]u32, u32) = .init(gpa);
+        defer hashmap.deinit();
 
         for (obj.face_vert_idxs, obj.face_normal_idxs) |vert_i, normal_i| {
             const vert = obj.verts[vert_i];
@@ -274,6 +277,8 @@ pub const RenderObject = struct {
 
         this.data = data.items;
         this.idxs = idxs.items;
+
+        // this.elements = idxs.len;
 
         {
             const elementsBuffer = gl.createBuffer();
@@ -359,9 +364,7 @@ pub const Render = struct {
     uProjection: *anyopaque = undefined,
     uView: *anyopaque = undefined,
 
-    uNear: *anyopaque = undefined,
-    uFar: *anyopaque = undefined,
-    uResolution: *anyopaque = undefined,
+    uResolution: *anyopaque = undefined, // for comp
 
     near: f32,
     far: f32,
@@ -382,8 +385,9 @@ pub const Render = struct {
             .width = width,
             .height = height,
 
-            .near = 0.01,
-            .far = 50,
+            // remove these. find a way of extracting them from the projection
+            .near = 0.005,
+            .far = 25,
         };
 
         this.colorTex = gl.createTexture();
@@ -394,7 +398,7 @@ pub const Render = struct {
 
         this.depthTex = gl.createTexture();
         gl.bindTexture(.TEXTURE_2D, this.depthTex);
-        gl.texImage2D(.TEXTURE_2D, 0, .DEPTH_COMPONENT24, width, height, 0, .DEPTH_COMPONENT, .UNSIGNED_INT);
+        gl.texImage2D(.TEXTURE_2D, 0, .DEPTH_COMPONENT24, this.width, this.height, 0, .DEPTH_COMPONENT, .UNSIGNED_INT);
         gl.texParameteri(.TEXTURE_2D, .TEXTURE_MIN_FILTER, .NEAREST);
         gl.texParameteri(.TEXTURE_2D, .TEXTURE_MAG_FILTER, .NEAREST);
 
@@ -451,18 +455,14 @@ pub const Render = struct {
 
         this.uProjection = gl.getUniformLocation(this.sceneProgram, "uProjection");
         this.uView = gl.getUniformLocation(this.sceneProgram, "uView");
-        this.uNear = gl.getUniformLocation(this.compProgram, "uNear");
-        this.uFar = gl.getUniformLocation(this.compProgram, "uFar");
         this.uResolution = gl.getUniformLocation(this.compProgram, "uResolution");
 
         return this;
     }
 
-    pub fn render(this: *This, gpa: std.mem.Allocator, width: i32, height: i32) !void {
+    pub fn render(this: *This, gpa: std.mem.Allocator, f: f32, width: i32, height: i32) !void {
         this.width = width;
         this.height = height;
-        this.t += 1;
-        const f: f32 = @floatFromInt(this.t);
 
         var clear: i32 = 0;
         clear |= @intFromEnum(gl.GLEnum_ClearBuffer.COLOR_BUFFER_BIT);
@@ -476,8 +476,8 @@ pub const Render = struct {
 
         gl.useProgram(this.sceneProgram);
 
-        const w = 10;
-        const h = 10;
+        const w = 15;
+        const h = 15;
 
         for (0..w) |ux| {
             for (0..h) |uy| {
@@ -486,30 +486,39 @@ pub const Render = struct {
                 var y: f32 = @floatFromInt(uy);
                 y -= @floatFromInt(h / 2);
 
-                var pos = m.Vec3.init(x, 0, y).mulScalar(1);
+                var pos = m.Vec3.init(x, 0, y).mulScalar(1.3);
                 pos.v[1] = @cos(pos.len() / 3 - f / 100) * 3 / (1 + pos.len() / 20);
                 const color: m.Vec4 = .fromHsl(pos.y() / 10 + f / 1000, 1, 0.5, 1);
 
+                const i = @mod(@as(i32, @floor(x + y)), 3);
+
                 const posRot = m.Mat4x4.translate(pos).mul(.rotateX(f / 100 + x / 2)).mul(.rotateZ(f / 100 - y / 2));
 
-                try this.icosphere_1.add(gpa, posRot.mul(.scale(.init(0.7, 0.7, 0.7))), color);
+                if (i == 0) {
+                    try this.cube.add(gpa, posRot.mul(.scale(.init(0.5, 0.5, 0.5))), color);
+                } else if (i == 1) {
+                    try this.icosphere_1.add(gpa, posRot.mul(.scale(.init(0.7, 0.7, 0.7))), color);
+                } else {
+                    try this.icosphere_3.add(gpa, posRot.mul(.scale(.init(0.7, 0.7, 0.7))), color);
+                }
             }
         }
 
         const aspectRatio = @as(f32, @floatFromInt(width)) / @as(f32, @floatFromInt(height));
-        try this.cube.add(gpa, m.Mat4x4.translate(.init(0, -3, 0)).mul(.scale(.init(10, 1, 10))), .init(1, 1, 1, 1));
+        // try this.cube.add(gpa, m.Mat4x4.translate(.init(0, -3, 0)).mul(.scale(.init(10, 1, 10))), .init(1, 1, 1, 1));
+        try this.cube.add(gpa, m.Mat4x4.translate(.init(0, -5, 0)).mul(.scale(.init(10, 1, 10))), .init(0.5, 0.5, 0.5, 1));
 
         const uProj = m.Mat4x4.projection2D(.{ .left = -6 * aspectRatio, .right = 6 * aspectRatio, .bottom = -6, .top = 6, .near = this.near, .far = this.far });
-        // const uProj = m.Mat4x4.perspective(.{ .fov = 1.5, .aspect = aspectRatio, .near = this.near, .far = this.far });
+        // const uProj = m.Mat4x4.perspective(.{ .fov = 0.6, .aspect = aspectRatio, .near = this.near, .far = this.far });
         gl.uniformMatrix4fv(this.uProjection, false, uProj);
 
-        // const uView = m.Mat4x4.translate(.init(0, 0, -8))
-        //     .mul(.rotateX(@sin(f / 500) / 3 + 0.9))
-        //     .mul(.rotateY(f / 800));
+        const uView = m.Mat4x4.translate(.init(0, 0, -10))
+            .mul(.rotateX(@sin(f / 500) / 4 + 0.6))
+            .mul(.rotateY(f / 800));
 
-        const uView = m.Mat4x4.translate(.init(0, 0, -8))
-            .mul(.rotateX(0.05))
-            .mul(.rotateY(0));
+        // const uView = m.Mat4x4.translate(.init(0, 0, -8))
+        //     .mul(.rotateX(0.05))
+        //     .mul(.rotateY(0));
 
         gl.uniformMatrix4fv(this.uView, false, uView);
 
@@ -524,8 +533,6 @@ pub const Render = struct {
         gl.disable(.DEPTH_TEST);
         gl.useProgram(this.compProgram);
 
-        gl.uniform1f(this.uNear, this.near);
-        gl.uniform1f(this.uFar, this.far);
         gl.uniform2f(this.uResolution, @floatFromInt(this.width), @floatFromInt(this.height));
 
         gl.activeTexture(.TEXTURE0);

@@ -1,6 +1,30 @@
 {
   "liveServer.settings.root": "./public",
+  "editor.codeActionsOnSave": {
+    "source.addMissingImports": "always",
+    "source.removeUnusedImports": "always",
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
+  },
+  "zig.buildOnSaveArgs": ["check"],
+  "zig.buildOnSaveProvider": "extension",
+  "zig.zls.enabled": "on",
+  // https://zigtools.org/zls/guides/build-on-save/
   "[zig]": {
-    "editor.indentSize": 4
+    "editor.indentSize": 4,
+    "editor.formatOnSave": true,
+    "editor.suggest.insertMode": "replace",
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+  "editor.semanticTokenColorCustomizations": {
+    "rules": {
+      "*.deprecated": {
+        // highlight semantic tokens that are marked as "deprecated"
+        "strikethrough": true
+      }
+    }
   }
 }

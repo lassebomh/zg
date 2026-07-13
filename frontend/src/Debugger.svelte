@@ -256,7 +256,7 @@
 
   onMount(() => {
     const { signal: destroySignal, abort: destroy } = abortSignal();
-    gl = gameCanvas.getContext("webgl2", { antialias: false }) ?? fail();
+    gl = gameCanvas.getContext("webgl2", { antialias: true }) ?? fail();
     gameCanvas.style.imageRendering = "pixelated";
 
     inputControl(gameCanvas, inputProxy, destroySignal);

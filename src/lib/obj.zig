@@ -105,6 +105,10 @@ pub const ObjMesh = struct {
                     tex.*.v[1] = try std.fmt.parseFloat(f32, (&parts).next() orelse return error.InvalidUV);
                 },
                 .face => {
+                    // handles:
+                    //  - trigs: 1/1/1 2/2/2 3/3/3
+                    //  - quads: 1/1/1 2/2/2 3/3/3 4/4/4
+                    // quads are converted to trigs.
                     var face_verts: [4]u32 = undefined;
                     var face_norms: [4]u32 = undefined;
                     var face_texs: [4]u32 = undefined;
