@@ -201,9 +201,9 @@ pub fn SecondOrder(T: type) type {
                 .k1 = dampingRatio / (std.math.pi * naturalFreq),
                 .k2 = 1 / ((2 * std.math.pi * naturalFreq) * (2 * std.math.pi * naturalFreq)),
                 .k3 = response * dampingRatio / (2 * std.math.pi * naturalFreq),
-                .previous = .Origin,
-                .value = .Origin,
-                .velocity = .Origin,
+                .previous = std.mem.zeroes(T),
+                .value = std.mem.zeroes(T),
+                .velocity = std.mem.zeroes(T),
                 .first = true,
             };
         }

@@ -391,17 +391,7 @@ pub const GLContext = struct {
 
         gl.useProgram(this.sceneProgram);
 
-        // const uProj = m.Mat4x4.projection2D(.{ .left = -6 * aspectRatio, .right = 6 * aspectRatio, .bottom = -6, .top = 6, .near = 0.01, .far = 25 });
         gl.uniformMatrix4fv(this.uProjection, false, camera.projection);
-
-        // const uView = m.Mat4x4.translate(.init(0, 0, -10))
-        //     .mul(.rotateX(@sin(f / 500) / 4 + 0.6))
-        //     .mul(.rotateY(f / 800));
-
-        // const uView = m.Mat4x4.translate(.init(0, 0, -8))
-        //     .mul(.rotateX(0.05))
-        //     .mul(.rotateY(0));
-
         gl.uniformMatrix4fv(this.uView, false, camera.view);
 
         this.icosphere_1.render();

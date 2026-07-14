@@ -2,7 +2,6 @@ const std = @import("std");
 
 const js = @import("../js/root.zig");
 const lib = @import("../lib/root.zig");
-const RGBA = lib.RGBA;
 const v2 = lib.v2;
 const m = @import("../math/main.zig");
 const game = @import("./root.zig");
