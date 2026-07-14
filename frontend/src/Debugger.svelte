@@ -510,6 +510,17 @@
     }
   }
 
+  function record() {
+    ui.playing = 1;
+    temp.recording = true;
+    gameCanvas.focus();
+
+    flushInputBufferInterval = setInterval(() => {
+      inputProxy.peer_id = ui.currentPeerId;
+      flushInputBuffer(tick, inputBuffer);
+    }, TICK_RATE);
+  }
+
   function recordButton(button: HTMLButtonElement) {
     const { abort, signal } = abortSignal();
 
@@ -517,18 +528,8 @@
       "click",
       () => {
         const { abort, signal } = abortSignal(stopAnyPlayback);
-
-        ui.playing = 1;
-        temp.recording = true;
-
         button.blur();
-        gameCanvas.focus();
-
-        flushInputBufferInterval = setInterval(() => {
-          inputProxy.peer_id = ui.currentPeerId;
-          flushInputBuffer(tick, inputBuffer);
-        }, TICK_RATE);
-
+        record();
         button.addEventListener("click", (e) => (e.stopPropagation(), abort()), { signal, capture: true });
         window.addEventListener("keydown", (e) => e.key === "Escape" && abort(), { signal });
       },
@@ -613,6 +614,52 @@
 
     return abort;
   }
+
+  function shortcut({
+    ctrl,
+    alt,
+    shift,
+    key,
+    repeat,
+  }: {
+    ctrl?: boolean;
+    alt?: boolean;
+    shift?: boolean;
+    key: string;
+    repeat?: boolean;
+  }) {
+    return (element: HTMLElement) => {
+      const { abort, signal } = abortSignal();
+
+      window.addEventListener(
+        "keydown",
+        (e) => {
+          if (!!ctrl != (e.ctrlKey || e.metaKey)) return;
+          if (!!shift != e.shiftKey) return;
+          if (!!alt != e.altKey) return;
+          if (e.key != key) return;
+          e.stopPropagation();
+          e.preventDefault();
+          if (e.repeat && !repeat) return;
+          element.click();
+          element.classList.add("pressed");
+
+          if (!e.repeat) {
+            window.addEventListener(
+              "keyup",
+              () => {
+                element.classList.remove("pressed");
+              },
+              { once: true, signal },
+            );
+          }
+        },
+        { signal, capture: true },
+      );
+
+      return abort;
+    };
+  }
 </script>
 
 <div id="tracks-canvas-container">
@@ -685,96 +732,168 @@
   ></canvas>
 </div>
 
-<div class="controls">
-  {#each { length: 4 } as _, i}
-    <button
-      style="--color: {PLAYER_COLORS[i]};"
-      class:active={ui.currentPeerId === i + 1}
-      onclick={() => (ui.currentPeerId = i + 1)}
-    >
-      P{i + 1}
-    </button>
-  {/each}
-
-  <div class="divider"></div>
-
-  <button {@attach stepButton(-1)} title="Step back">
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-      <rect x="1" y="2" width="2" height="8" />
-      <polygon points="11,2 11,10 4,6" />
-    </svg>
-  </button>
-  <button {@attach playButton(-1)} class:active={!temp.recording && ui.playing === -1} title="Rewind">
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-      <polygon points="10,1 1,6 10,11" />
-    </svg>
-  </button>
-  <button {@attach recordButton} class:active={temp.recording} title="Record" style="--color: #ef4444 !important">
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-      <circle cx="6" cy="6" r="5" />
-    </svg>
-  </button>
-  <button {@attach playButton(1)} class:active={!temp.recording && ui.playing === 1} title="Play">
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-      <polygon points="2,1 11,6 2,11" />
-    </svg>
-  </button>
-  <button {@attach stepButton(1)} title="Step forward">
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-      <polygon points="1,2 8,6 1,10" />
-      <rect x="9" y="2" width="2" height="8" />
-    </svg>
-  </button>
-
-  <div class="dropdown">
-    <div class="dropdown-head">
-      <button style="width: 48px;" onclick={() => (ui.playSpeed = 0)}>
-        1/{Math.pow(2, -ui.playSpeed)}
-      </button>
-    </div>
-    <div class="dropdown-body">
-      <input type="range" step="1" min={-8} max={0} bind:value={ui.playSpeed} />
-    </div>
-  </div>
-
-  <div class="divider"></div>
-
-  <button {@attach alphaButton} class:active={ui.alphaLock} title="Disable frame interpolation">α=0</button>
-
-  <div class="divider"></div>
-
-  <button
-    title="Add loop marker"
-    {@attach markerButton}
-    class:active={ui.loopStart !== undefined && ui.loopEnd !== undefined}
-  >
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-      <rect x="5" y="1" width="2" height="10" />
-      <polygon points="2,1 5,1 5,3" />
-      <polygon points="10,1 7,1 7,3" />
-      <polygon points="2,11 5,11 5,9" />
-      <polygon points="10,11 7,11 7,9" />
-    </svg>
-  </button>
-
-  <div class="divider"></div>
-
-  <button
-    onclick={async () => {
-      await saveStore.delete();
-      location.reload();
-    }}
-  >
-    Reset
-  </button>
-</div>
-
 <div id="canvas-container" class:recording={temp.recording}>
   <div id="canvas-target">
     <canvas id="canvas" bind:this={gameCanvas}></canvas>
   </div>
   <div id="canvas-overlay" class:panning={temp.canvasOverlayPanning}>
-    <pre class="yaml" id="inputs-viewer"></pre>
+    <div class="controls">
+      <div class="controls-row">
+        <button
+          style="--color: {PLAYER_COLORS[0]};"
+          class:active={ui.currentPeerId === 1}
+          onclick={() => (ui.currentPeerId = 1)}
+          {@attach shortcut({ alt: true, key: "1" })}
+        >
+          P1
+        </button>
+
+        <button
+          style="--color: {PLAYER_COLORS[1]};"
+          class:active={ui.currentPeerId === 2}
+          onclick={() => (ui.currentPeerId = 2)}
+          {@attach shortcut({ alt: true, key: "2" })}
+        >
+          P2
+        </button>
+
+        <button
+          style="--color: {PLAYER_COLORS[2]};"
+          class:active={ui.currentPeerId === 3}
+          onclick={() => (ui.currentPeerId = 3)}
+          {@attach shortcut({ alt: true, key: "3" })}
+        >
+          P3
+        </button>
+
+        <button
+          style="--color: {PLAYER_COLORS[3]};"
+          class:active={ui.currentPeerId === 4}
+          onclick={() => (ui.currentPeerId = 4)}
+          {@attach shortcut({ alt: true, key: "4" })}
+        >
+          P4
+        </button>
+      </div>
+
+      <div class="controls-row" style="margin-left: 0.5rem;">
+        <button
+          {@attach playButton(-1)}
+          {@attach shortcut({ alt: true, key: "q" })}
+          class:active={!temp.recording && ui.playing === -1}
+          title="Rewind"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+            <polygon points="10,1 1,6 10,11" />
+          </svg>
+        </button>
+        <button
+          {@attach recordButton}
+          {@attach shortcut({ alt: true, key: "w" })}
+          class:active={temp.recording}
+          title="Record"
+          style="--color: #ef4444 !important"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+            <circle cx="6" cy="6" r="5" />
+          </svg>
+        </button>
+        <button
+          {@attach playButton(1)}
+          {@attach shortcut({ alt: true, key: "e" })}
+          class:active={!temp.recording && ui.playing === 1}
+          title="Play"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+            <polygon points="2,1 11,6 2,11" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="controls-row" style="margin-left: 1rem;">
+        <button {@attach stepButton(-999999999)} {@attach shortcut({ alt: true, key: "a" })} title="Step back">
+          <svg width="14" height="14" viewBox="0 0 12 12" fill="currentColor">
+            <polygon points="5,2 2,6 5,10" />
+            <polygon points="10,2 7,6 10,10" />
+          </svg>
+        </button>
+        <button {@attach stepButton(-1)} {@attach shortcut({ alt: true, key: "s", repeat: true })} title="Step back">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+            <rect x="1" y="2" width="2" height="8" />
+            <polygon points="11,2 11,10 4,6" />
+          </svg>
+        </button>
+        <button {@attach stepButton(1)} {@attach shortcut({ alt: true, key: "d", repeat: true })} title="Step forward">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+            <polygon points="1,2 8,6 1,10" />
+            <rect x="9" y="2" width="2" height="8" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="controls-row" style="margin-left: 1.5rem;">
+        <button
+          onclick={() => {
+            ui.playSpeed -= 1;
+            if (ui.playSpeed < -8) ui.playSpeed = 0;
+          }}
+          {@attach shortcut({ alt: true, key: "z" })}
+        >
+          x{Math.pow(2, -ui.playSpeed)}
+        </button>
+
+        <button
+          {@attach alphaButton}
+          {@attach shortcut({ alt: true, key: "x" })}
+          class:active={ui.alphaLock}
+          title="Disable frame interpolation">α</button
+        >
+
+        <button
+          title="Add loop marker"
+          {@attach markerButton}
+          {@attach shortcut({ alt: true, key: "c" })}
+          class:active={ui.loopStart !== undefined && ui.loopEnd !== undefined}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+            <rect x="5" y="1" width="2" height="10" />
+            <polygon points="2,1 5,1 5,3" />
+            <polygon points="10,1 7,1 7,3" />
+            <polygon points="2,11 5,11 5,9" />
+            <polygon points="10,11 7,11 7,9" />
+          </svg>
+        </button>
+
+        <button
+          {@attach shortcut({ alt: true, key: "v" })}
+          onclick={async () => {
+            if (!confirm("Are you sure you want to reset?")) return;
+            await saveStore.delete();
+            location.reload();
+          }}
+          title="Reset"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 6h18" />
+            <path d="M8 6V4h8v2" />
+            <path d="M6 6l1 14h10l1-14" />
+            <path d="M10 10v6" />
+            <path d="M14 10v6" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <!-- <pre class="yaml" id="inputs-viewer"></pre>
     <div id="state-viewer">
       <input
         type="text"
@@ -783,7 +902,7 @@
         placeholder="Type $ to query the state"
       />
       <pre class="yaml" id="state-viewer-output"></pre>
-    </div>
+    </div> -->
   </div>
 </div>
 
@@ -863,14 +982,18 @@
   .controls {
     user-select: none;
     display: flex;
+    flex-direction: column;
     justify-content: center;
-    align-items: center;
+    align-items: start;
     padding: 0.4rem 0.6rem;
-    gap: 0.15rem;
-    background-color: rgba(17, 17, 17, 0.9);
-    border: 1px solid #333;
+    gap: 0rem;
     border-left: 0;
     border-right: 0;
+
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+
     z-index: 20;
 
     /* .label {
@@ -881,20 +1004,26 @@
       align-items: center;
     } */
   }
+  .controls-row {
+    display: flex;
+    justify-content: start;
+  }
+
   .controls button {
     --color: #fff;
 
+    background-color: rgba(17, 17, 17, 0.9);
+    border: 1px solid #333;
+
     font-family: monospace;
     font-size: 12px;
-    background-color: transparent;
-    border: none;
     padding: 0 0.5rem;
     height: 2rem;
+    width: 2.3rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
     position: relative;
 
     color: var(--color);
@@ -927,7 +1056,8 @@
         opacity: 0.9;
       }
     }
-    &:active {
+    &:active,
+    &:global(.pressed) {
       color: #000 !important;
       &::before {
         opacity: 0.7;

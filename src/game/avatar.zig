@@ -44,7 +44,7 @@ pub const Avatar = struct {
             _ = g; // autofix
             return .{
                 .id = avatar.id,
-                .pos = .init(3, 0.1, 0),
+                .pos = .init(4, 0.3, 1),
             };
         }
 

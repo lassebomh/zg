@@ -77,14 +77,16 @@ pub const State = struct {
         }
 
         pub fn render(this: *Render, gpa: std.mem.Allocator, state: *State, width: i32, height: i32, tick: i32, alpha: f32) !void {
+            this.state = state;
+
             const prevTick = this.tick;
             this.tick = @floatFromInt(tick);
             this.tick += alpha;
-
             this.dt = (this.tick - prevTick) * State.TickRate;
-            this.state = state;
 
-            for (this.avatars.iter()) |renderAvatar| {
+            const len = this.avatars.len;
+            for (0..len) |i| {
+                const renderAvatar = &this.avatars.items[len - i - 1];
                 if (this.state.avatars.get(renderAvatar.id) == null) {
                     this.avatars.delete(renderAvatar.id);
                 }
