@@ -43,7 +43,6 @@ pub const State = struct {
         for (this.avatars.iter()) |*avatar| {
             avatar.update(this);
         }
-        // update_boxes(&this.boxes);
     }
 
     pub fn init() State {
@@ -66,6 +65,8 @@ pub const State = struct {
 
         avatars: lib.Container(game.Avatar.Render, MaxPlayers),
 
+        camera_pos: lib.SecondOrder(m.Vec2) = .init(5, 3, 0),
+
         pub fn init(ctx: *GLContext, state: *State) Render {
             return .{
                 .ctx = ctx,
@@ -76,14 +77,14 @@ pub const State = struct {
             };
         }
 
-        pub fn render(this: *Render, gpa: std.mem.Allocator, state: *State, width: i32, height: i32, tick: i32, alpha: f32) !void {
+        pub fn render(this: *Render, gpa: std.mem.Allocator, state: *State, screen: m.Vec2, tick: f32, peer_id: i32) !void {
             this.state = state;
 
             const prevTick = this.tick;
-            this.tick = @floatFromInt(tick);
-            this.tick += alpha;
+            this.tick = tick;
             this.dt = (this.tick - prevTick) * State.TickRate;
 
+            // cleanup deleted avatars
             const len = this.avatars.len;
             for (0..len) |i| {
                 const renderAvatar = &this.avatars.items[len - i - 1];
@@ -92,22 +93,46 @@ pub const State = struct {
                 }
             }
 
+            // begin render
             try this.ctx.cube.add(gpa, m.Mat4x4.translate(.init(0, -2, 0)).mul(.scale(.init(6, 1, 6))), .init(1, 1, 1, 1));
 
             for (this.state.avatars.iter()) |avatar| {
+                // create the avatar if it doesn't exist
                 var renderAvatar = this.avatars.get(avatar.id) orelse brk: {
                     const newAvatar = try this.avatars.addOne();
                     newAvatar.* = .init(this, avatar);
                     break :brk newAvatar;
                 };
 
-                try renderAvatar.draw(this, gpa);
+                try renderAvatar.render(this, gpa);
             }
 
-            const aspectRatio = @as(f32, @floatFromInt(width)) / @as(f32, @floatFromInt(height));
+            // move camera to current avatar
+            var peerAvatar: ?game.Avatar = null;
+            for (this.state.players.iter()) |player| {
+                if (player.peer_id == peer_id) {
+                    for (this.state.avatars.iter()) |avatar| {
+                        if (avatar.id == player.avatar_id) {
+                            peerAvatar = avatar;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+            if (peerAvatar) |avatar| {
+                this.camera_pos.update(this.dt, avatar.position);
+            }
 
+            const aspectRatio = screen.x() / screen.y();
             try this.ctx.render(.{
-                .view = m.Mat4x4.translate(.init(0, 0, -10)).mul(.rotateX(0.9)).mul(.rotateY(0)),
+                .view = m.Mat4x4.translate(
+                    .init(0, 0, -10),
+                ).mul(
+                    .rotateX(0.9),
+                ).mul(
+                    .translate(.init(-this.camera_pos.value.x(), 0, -this.camera_pos.value.y())),
+                ),
                 .projection = .projection2D(.{
                     .left = -6 * aspectRatio,
                     .right = 6 * aspectRatio,
@@ -116,8 +141,7 @@ pub const State = struct {
                     .near = 0.01,
                     .far = 25,
                 }),
-                .width = width,
-                .height = height,
+                .screen = screen,
             });
         }
     };

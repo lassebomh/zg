@@ -264,8 +264,7 @@ pub const GLObject = struct {
 pub const GLCamera = struct {
     view: m.Mat4x4,
     projection: m.Mat4x4,
-    width: i32,
-    height: i32,
+    screen: m.Vec2,
 };
 
 pub const GLContext = struct {
@@ -289,21 +288,22 @@ pub const GLContext = struct {
     cube: GLObject = undefined,
     cylinder: GLObject = undefined,
 
-    width: i32 = 1,
-    height: i32 = 1,
+    screen: m.Vec2,
 
     pub fn create(gpa: std.mem.Allocator) !This {
-        var this = This{};
+        var this = This{
+            .screen = .init(1, 1),
+        };
 
         this.colorTex = gl.createTexture();
         gl.bindTexture(.TEXTURE_2D, this.colorTex);
-        gl.texImage2D(.TEXTURE_2D, 0, .RGBA8, this.width, this.height, 0, .RGBA, .UNSIGNED_BYTE);
+        gl.texImage2D(.TEXTURE_2D, 0, .RGBA8, @intFromFloat(this.screen.x()), @intFromFloat(this.screen.y()), 0, .RGBA, .UNSIGNED_BYTE);
         gl.texParameteri(.TEXTURE_2D, .TEXTURE_MIN_FILTER, .NEAREST);
         gl.texParameteri(.TEXTURE_2D, .TEXTURE_MAG_FILTER, .NEAREST);
 
         this.depthTex = gl.createTexture();
         gl.bindTexture(.TEXTURE_2D, this.depthTex);
-        gl.texImage2D(.TEXTURE_2D, 0, .DEPTH_COMPONENT24, this.width, this.height, 0, .DEPTH_COMPONENT, .UNSIGNED_INT);
+        gl.texImage2D(.TEXTURE_2D, 0, .DEPTH_COMPONENT24, @intFromFloat(this.screen.x()), @intFromFloat(this.screen.y()), 0, .DEPTH_COMPONENT, .UNSIGNED_INT);
         gl.texParameteri(.TEXTURE_2D, .TEXTURE_MIN_FILTER, .NEAREST);
         gl.texParameteri(.TEXTURE_2D, .TEXTURE_MAG_FILTER, .NEAREST);
 
@@ -371,13 +371,12 @@ pub const GLContext = struct {
     }
 
     pub fn render(this: *This, camera: GLCamera) !void {
-        if (this.width != camera.width or this.height != camera.height) {
-            this.width = camera.width;
-            this.height = camera.height;
+        if (!this.screen.eql(&camera.screen)) {
+            this.screen = camera.screen;
             gl.bindTexture(.TEXTURE_2D, this.colorTex);
-            gl.texImage2D(.TEXTURE_2D, 0, .RGBA8, this.width, this.height, 0, .RGBA, .UNSIGNED_BYTE);
+            gl.texImage2D(.TEXTURE_2D, 0, .RGBA8, @intFromFloat(this.screen.x()), @intFromFloat(this.screen.y()), 0, .RGBA, .UNSIGNED_BYTE);
             gl.bindTexture(.TEXTURE_2D, this.depthTex);
-            gl.texImage2D(.TEXTURE_2D, 0, .DEPTH_COMPONENT24, this.width, this.height, 0, .DEPTH_COMPONENT, .UNSIGNED_INT);
+            gl.texImage2D(.TEXTURE_2D, 0, .DEPTH_COMPONENT24, @intFromFloat(this.screen.x()), @intFromFloat(this.screen.y()), 0, .DEPTH_COMPONENT, .UNSIGNED_INT);
         }
 
         var clear: i32 = 0;
@@ -387,7 +386,7 @@ pub const GLContext = struct {
         gl.enable(.CULL_FACE);
         gl.bindFramebuffer(.FRAMEBUFFER, this.fbo);
 
-        gl.viewport(0, 0, camera.width, camera.height);
+        gl.viewport(0, 0, @intFromFloat(camera.screen.x()), @intFromFloat(camera.screen.y()));
         gl.clear(clear);
 
         gl.useProgram(this.sceneProgram);
@@ -415,9 +414,9 @@ pub const GLContext = struct {
 
         gl.disable(.DEPTH_TEST);
         gl.useProgram(this.compProgram);
-        gl.viewport(0, 0, camera.width, camera.height);
+        gl.viewport(0, 0, @intFromFloat(camera.screen.x()), @intFromFloat(camera.screen.y()));
 
-        gl.uniform2f(this.uResolution, @floatFromInt(camera.width), @floatFromInt(camera.height));
+        gl.uniform2f(this.uResolution, camera.screen.x(), camera.screen.y());
 
         gl.activeTexture(.TEXTURE0);
         gl.bindTexture(.TEXTURE_2D, this.colorTex);

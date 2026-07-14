@@ -48,7 +48,7 @@ pub const Avatar = struct {
             };
         }
 
-        pub fn draw(this: *Render, g: *game.State.Render, gpa: std.mem.Allocator) !void {
+        pub fn render(this: *Render, g: *game.State.Render, gpa: std.mem.Allocator) !void {
             const avatar = g.state.avatars.get(this.id).?;
 
             this.pos.update(g.dt, .init(avatar.position.x(), 0, avatar.position.y()));

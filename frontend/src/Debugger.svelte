@@ -991,7 +991,7 @@
     border-right: 0;
 
     position: absolute;
-    bottom: 10px;
+    top: 10px;
     left: 10px;
 
     z-index: 20;

@@ -34,7 +34,6 @@ export fn jsGetPeerInputsLen(peer_id: i32) usize {
 }
 
 export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height: i32, peer_id: i32) void {
-    if (screen_width == 0 or screen_height == 0) return;
     render(itick, alpha, screen_width, screen_height, peer_id) catch |e| debug.fail(e);
 }
 
@@ -43,7 +42,7 @@ export fn jsPullInputBuffer(itick: i32) void {
 }
 
 fn render(tick: i32, alpha: f32, width: i32, height: i32, peer_id: i32) !void {
-    _ = peer_id; // autofix
+    if (width == 0 or height == 0) return;
 
     const utick: usize = @intCast(tick);
 
@@ -97,8 +96,10 @@ fn render(tick: i32, alpha: f32, width: i32, height: i32, peer_id: i32) !void {
     if (stateRender == null) {
         stateRender = .init(&ctx.?, state_right);
     }
+    var ftick: f32 = @floatFromInt(tick);
+    ftick += alpha;
 
-    try stateRender.?.render(wal, state_right, width, height, tick, alpha);
+    try stateRender.?.render(wal, state_right, .init(@floatFromInt(width), @floatFromInt(height)), ftick, peer_id);
 }
 
 fn pull_input_buffer(itick: i32) !void {

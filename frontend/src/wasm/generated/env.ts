@@ -1,6 +1,6 @@
 // AUTO-GENERATED
 
-export type opaque_ptr = { readonly _: unique symbol};
+export type opaque_ptr = { readonly _: unique symbol };
 
 export interface WasmFnExports {
   /**
@@ -108,7 +108,14 @@ export interface WasmEnv {
    * @param offset i32
    * @returns void
    */
-  _vertexAttribPointer(index: number, size: number, type: number, normalized: number, stride: number, offset: number): void;
+  _vertexAttribPointer(
+    index: number,
+    size: number,
+    type: number,
+    normalized: number,
+    stride: number,
+    offset: number,
+  ): void;
   /**
    * @param target GLEnum_Texture
    * @returns void
@@ -248,7 +255,16 @@ export interface WasmEnv {
    * @param type GLEnum_DataType
    * @returns void
    */
-  texImage2D(target: number, level: number, internalformat: number, width: number, height: number, border: number, format: number, type: number): void;
+  texImage2D(
+    target: number,
+    level: number,
+    internalformat: number,
+    width: number,
+    height: number,
+    border: number,
+    format: number,
+    type: number,
+  ): void;
   /**
    * @param target GLEnum_Texture
    * @param pname GLEnum_Texture
