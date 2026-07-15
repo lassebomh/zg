@@ -26,7 +26,7 @@ const sceneVertexSource =
     \\  vec4 world = model * vec4(position, 1.0);
     \\  vec4 worldNormal = normalModel * vec4(normal, 1.0);
     \\  world = round(world * POS_QUANTIZATION) / POS_QUANTIZATION;
-    \\  vBrightness = max(dot(vec3(0, 1, 0), worldNormal.xyz), 0.0);
+    \\  vBrightness = max(dot(normalize(vec3(0, 1, 0.3)), worldNormal.xyz), 0.0);
     \\  gl_Position = uProjection * uView * world;
     \\}
 ;
@@ -287,6 +287,7 @@ pub const GLContext = struct {
     icosphere_3: GLObject = undefined,
     cube: GLObject = undefined,
     cylinder: GLObject = undefined,
+    head: GLObject = undefined,
 
     screen: m.Vec2,
 
@@ -362,6 +363,11 @@ pub const GLContext = struct {
             this.sceneProgram,
             try ObjMesh.fromFile(@embedFile("../models/cylinder.obj"), gpa),
         );
+        this.head = try GLObject.init(
+            gpa,
+            this.sceneProgram,
+            try ObjMesh.fromFile(@embedFile("../models/head.obj"), gpa),
+        );
 
         this.uProjection = gl.getUniformLocation(this.sceneProgram, "uProjection");
         this.uView = gl.getUniformLocation(this.sceneProgram, "uView");
@@ -398,6 +404,7 @@ pub const GLContext = struct {
         this.icosphere_3.render();
         this.cube.render();
         this.cylinder.render();
+        this.head.render();
 
         // composite
         gl.bindFramebuffer(.FRAMEBUFFER, null);

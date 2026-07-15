@@ -211,9 +211,6 @@ pub fn SecondOrder(T: type) type {
         pub fn update(this: *This, dt: f32, newValue: T) void {
             if (dt == 0) {
                 return;
-            } else if (dt < 0) {
-                this.value = newValue;
-                return;
             }
 
             if (this.first) {
@@ -222,7 +219,7 @@ pub fn SecondOrder(T: type) type {
                 this.first = false;
             }
 
-            const deltaSeconds = dt / 1000;
+            const deltaSeconds = @max(@abs(dt / 1000), 0.00001);
 
             const xd = newValue.sub(&this.previous).divScalar(deltaSeconds);
 

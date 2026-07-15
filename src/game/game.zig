@@ -94,7 +94,7 @@ pub const State = struct {
             }
 
             // begin render
-            try this.ctx.cube.add(gpa, m.Mat4x4.translate(.init(0, -2, 0)).mul(.scale(.init(6, 1, 6))), .init(1, 1, 1, 1));
+            try this.ctx.cube.add(gpa, m.Mat4x4.translate(.init(0, 0, 0)).mul(.scale(.init(6, 0.001, 6))), .init(1, 1, 1, 1));
 
             for (this.state.avatars.iter()) |avatar| {
                 // create the avatar if it doesn't exist
@@ -125,19 +125,24 @@ pub const State = struct {
             }
 
             const aspectRatio = screen.x() / screen.y();
+
+            const scale: f32 = 6;
+            // const scale: f32 = 2;
+
             try this.ctx.render(.{
                 .view = m.Mat4x4.translate(
                     .init(0, 0, -10),
                 ).mul(
+                    // .rotateX(0.3),
                     .rotateX(0.9),
                 ).mul(
-                    .translate(.init(-this.camera_pos.value.x(), 0, -this.camera_pos.value.y())),
+                    .translate(.init(-this.camera_pos.value.x(), -1, -this.camera_pos.value.y())),
                 ),
                 .projection = .projection2D(.{
-                    .left = -6 * aspectRatio,
-                    .right = 6 * aspectRatio,
-                    .bottom = -6,
-                    .top = 6,
+                    .left = -scale * aspectRatio,
+                    .right = scale * aspectRatio,
+                    .bottom = -scale,
+                    .top = scale,
                     .near = 0.01,
                     .far = 25,
                 }),

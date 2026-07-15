@@ -1,17 +1,27 @@
 const std = @import("std");
 
+const debug = @import("../js/debug.zig");
 const js = @import("../js/root.zig");
 const lib = @import("../lib/root.zig");
 const v2 = lib.v2;
 const m = @import("../math/main.zig");
 const game = @import("./root.zig");
 
+const avatarColors = [_]m.Vec4{
+    .init(1, 0, 0, 1),
+    .init(0, 1, 0, 1),
+    .init(0, 0, 1, 1),
+    .init(1, 1, 0, 1),
+    .init(0, 1, 1, 1),
+    .init(1, 0, 1, 1),
+};
+
 pub const Avatar = struct {
     id: usize,
     inputs: struct {
         jump: bool,
-        lstick: v2.Value,
-        rstick: v2.Value,
+        lstick: m.Vec2,
+        rstick: m.Vec2,
     },
 
     position: m.Vec2,
@@ -21,8 +31,8 @@ pub const Avatar = struct {
             .id = id,
             .inputs = .{
                 .jump = false,
-                .lstick = v2.zero,
-                .rstick = v2.zero,
+                .lstick = .init(0, 0),
+                .rstick = .init(0, 0),
             },
             .position = .init(0, 0),
         };
@@ -30,31 +40,77 @@ pub const Avatar = struct {
 
     pub fn update(this: *Avatar, g: *game.State) void {
         _ = g; // autofix
-        this.position.v[0] += this.inputs.lstick[0] * 0.1;
-        this.position.v[1] += this.inputs.lstick[1] * 0.1;
+
+        this.position = this.position.add(&this.inputs.lstick.mulScalar(0.1));
     }
 
     pub const Render = struct {
         id: usize,
 
-        pos: lib.SecondOrder(m.Vec3),
+        pos: lib.SecondOrder(m.Vec3) = .init(4, 0.5, 1),
+        dir: lib.SecondOrder(m.Vec2) = .init(3, 0.5, 0),
+        lean: lib.SecondOrder(m.Vec2) = .init(2, 0.5, 0),
+        walk: lib.SecondOrder(m.Vec2) = .init(7, 2, 0),
+        walk_angle: f32 = 0,
+
+        move_dir: m.Vec2 = .init(0, 0),
 
         pub fn init(g: *game.State.Render, avatar: Avatar) Render {
             _ = g; // autofix
-            return .{
-                .id = avatar.id,
-                .pos = .init(4, 0.3, 1),
-            };
+            return .{ .id = avatar.id };
         }
 
         pub fn render(this: *Render, g: *game.State.Render, gpa: std.mem.Allocator) !void {
             const avatar = g.state.avatars.get(this.id).?;
 
+            const color = avatarColors[avatar.id % avatarColors.len];
+
             this.pos.update(g.dt, .init(avatar.position.x(), 0, avatar.position.y()));
 
-            const model = m.Mat4x4.translate(this.pos.value);
+            if (avatar.inputs.lstick.len() > 0.1) {
+                this.move_dir = m.Vec2.init(this.pos.velocity.x(), this.pos.velocity.z()).normalize(0.01);
+                const target_dir = avatar.inputs.lstick.normalize(0.01);
 
-            try g.ctx.cylinder.add(gpa, model, .init(1, 0, 0, 1));
+                const dot = this.move_dir.dot(&target_dir);
+                const cross = this.move_dir.x() * target_dir.y() - this.move_dir.y() * target_dir.x();
+
+                const angle = std.math.atan2(cross, dot);
+
+                this.walk.update(g.dt, .init(1, 0));
+
+                this.lean.update(g.dt, .init(0.15, angle));
+            } else {
+                this.walk.update(g.dt, .init(0, 0));
+                this.lean.update(g.dt, .init(-this.pos.velocity.len() * 0.1, 0));
+            }
+            this.walk_angle += this.pos.velocity.len() / 300 * g.dt;
+            this.dir.update(g.dt, this.move_dir);
+            this.dir.value = this.dir.value.normalize(0.1);
+
+            const angle: m.Mat4x4 = .rotateY(std.math.atan2(-this.dir.value.y(), this.dir.value.x()) + std.math.pi / 2.0);
+            const lean = m.Mat4x4.rotateZ(this.lean.value.y()).mul(.rotateX(this.lean.value.x()));
+
+            const jump = @abs(@cos(this.walk_angle)) * this.walk.value.x() / 2;
+
+            const gait = m.Mat4x4.translate(.init(0, jump, 0));
+
+            const basemodel = m.Mat4x4.translate(this.pos.value).mul(angle).mul(lean).mul(gait);
+
+            // try g.ctx.icosphere_3.add(gpa, basemodel.mul(.scale(.init(0.2, 0.2, 0.2))), .init(0, 0, 1, 1));
+
+            {
+                const scale: m.Mat4x4 = .scale(.init(0.3, 0.4, 0.4));
+                const pos: m.Mat4x4 = .translate(.init(0, 1, 0));
+
+                try g.ctx.head.add(gpa, basemodel.mul(pos).mul(scale), color);
+            }
+
+            {
+                const scale: m.Mat4x4 = .scale(.init(0.35, 0.35, 0.35));
+                const transl: m.Mat4x4 = .translate(.init(0, 0.5, 0));
+
+                try g.ctx.cylinder.add(gpa, basemodel.mul(transl).mul(scale), color);
+            }
         }
     };
 };
@@ -80,12 +136,15 @@ pub const Player = struct {
         if (this.input.space or this.avatar_id != null) {
             var avatar = this.upsert_avatar(g);
 
-            var lstick = v2.zero;
-            if (this.input.a) lstick[0] -= 1;
-            if (this.input.d) lstick[0] += 1;
-            if (this.input.w) lstick[1] -= 1;
-            if (this.input.s) lstick[1] += 1;
-            avatar.inputs.lstick = v2.clamp_length(lstick, 1);
+            var lstick: m.Vec2 = .init(0, 0);
+            if (this.input.a) lstick.v[0] -= 1;
+            if (this.input.d) lstick.v[0] += 1;
+            if (this.input.w) lstick.v[1] -= 1;
+            if (this.input.s) lstick.v[1] += 1;
+
+            const len = @max(lstick.len(), 1);
+
+            avatar.inputs.lstick = lstick.divScalar(len);
 
             // var rstick = v2.zero;
             // if (this.input.a) rstick[0] -= 1;

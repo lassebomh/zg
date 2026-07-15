@@ -23,8 +23,6 @@ pub fn Vec2(comptime Scalar: type) type {
 
         const VecN = @This();
 
-        pub const Origin: VecN = .init(0, 0);
-
         const Shared = VecShared(Scalar, VecN);
 
         pub inline fn init(xs: Scalar, ys: Scalar) VecN {
@@ -91,8 +89,6 @@ pub fn Vec3(comptime Scalar: type) type {
         pub const Vector = @Vector(n, Scalar);
 
         const VecN = @This();
-
-        pub const Origin: VecN = .init(0, 0, 0);
 
         const Shared = VecShared(Scalar, VecN);
 

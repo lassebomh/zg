@@ -261,6 +261,8 @@
 
     inputControl(gameCanvas, inputProxy, destroySignal);
 
+    window.addEventListener("keydown", (e) => e.key === "Escape" && stopAnyPlayback(), { signal: destroySignal });
+
     const saveInterval = setInterval(async () => {
       const save: Save = {
         ui: $state.snapshot(ui),
@@ -531,7 +533,6 @@
         button.blur();
         record();
         button.addEventListener("click", (e) => (e.stopPropagation(), abort()), { signal, capture: true });
-        window.addEventListener("keydown", (e) => e.key === "Escape" && abort(), { signal });
       },
       { signal },
     );
