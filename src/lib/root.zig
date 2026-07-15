@@ -221,7 +221,7 @@ pub fn SecondOrder(T: type) type {
 
             const deltaSeconds = @max(@abs(dt / 1000), 0.00001);
 
-            const xd = newValue.sub(&this.previous).divScalar(deltaSeconds);
+            const xd = newValue.sub(this.previous).divScalar(deltaSeconds);
 
             const k2_stable = @max(
                 this.k2,
@@ -229,15 +229,15 @@ pub fn SecondOrder(T: type) type {
                 deltaSeconds * this.k1,
             );
 
-            this.value = this.value.add(&this.velocity.mulScalar(deltaSeconds));
+            this.value = this.value.add(this.velocity.mulScalar(deltaSeconds));
 
             const accel = newValue
-                .add(&xd.mulScalar(this.k3))
-                .sub(&this.value)
-                .sub(&this.velocity.mulScalar(this.k1))
+                .add(xd.mulScalar(this.k3))
+                .sub(this.value)
+                .sub(this.velocity.mulScalar(this.k1))
                 .divScalar(k2_stable);
 
-            this.velocity = this.velocity.add(&accel.mulScalar(deltaSeconds));
+            this.velocity = this.velocity.add(accel.mulScalar(deltaSeconds));
 
             this.previous = newValue;
         }

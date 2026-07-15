@@ -65,7 +65,7 @@ pub const State = struct {
 
         avatars: lib.Container(game.Avatar.Render, MaxPlayers),
 
-        camera_pos: lib.SecondOrder(m.Vec2) = .init(5, 3, 0),
+        camera_pos: lib.SecondOrder(m.Vec3) = .init(5, 3, 0),
 
         pub fn init(ctx: *GLContext, state: *State) Render {
             return .{

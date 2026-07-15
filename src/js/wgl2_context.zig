@@ -377,7 +377,7 @@ pub const GLContext = struct {
     }
 
     pub fn render(this: *This, camera: GLCamera) !void {
-        if (!this.screen.eql(&camera.screen)) {
+        if (!this.screen.eql(camera.screen)) {
             this.screen = camera.screen;
             gl.bindTexture(.TEXTURE_2D, this.colorTex);
             gl.texImage2D(.TEXTURE_2D, 0, .RGBA8, @intFromFloat(this.screen.x()), @intFromFloat(this.screen.y()), 0, .RGBA, .UNSIGNED_BYTE);
