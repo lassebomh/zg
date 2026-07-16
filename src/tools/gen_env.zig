@@ -58,6 +58,7 @@ pub fn main(init: std.process.Init) !void {
         \\
         \\
     );
+
     try emitInterface(gpa, &out, "WasmFnExports", exports.items);
     try out.appendSlice(gpa, "\n");
     try emitInterface(gpa, &out, "WasmEnv", imports.items);

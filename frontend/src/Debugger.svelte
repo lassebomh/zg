@@ -257,6 +257,11 @@
     gl = gameCanvas.getContext("webgl2", { antialias: true }) ?? fail();
     gameCanvas.style.imageRendering = "pixelated";
 
+    // render the past 60 ticks to "warm" up the renderer. some stuff rely on a transition in the state to appear.
+    for (let t = Math.max(0, tick - 60); t < tick; t++) {
+      wasm.jsRenderTick(t, 0.5, 200, 200, ui.currentPeerId);
+    }
+
     inputControl(gameCanvas, inputProxy, destroySignal);
 
     window.addEventListener("keydown", (e) => e.key === "Escape" && stopAnyPlayback(), { signal: destroySignal });
@@ -319,7 +324,7 @@
         ui.cameraZ,
         ui.cameraPitch,
         ui.cameraYaw,
-        Math.pow(2, ui.cameraZoom),
+        Math.pow(2, -ui.cameraZoom),
       );
       wasm.jsRenderTick(tick, alpha, gameWidth, gameHeight, ui.currentPeerId);
 

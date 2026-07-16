@@ -76,11 +76,29 @@ pub const Avatar = struct {
                 const head: Bone = .{
                     .translation = .init(0, 1, 0),
                 };
+                const lshoulder: Bone = .{
+                    .translation = .init(0, 0, -1),
+                    .rotation = .rotateY(.identity(), -1),
+                };
+                const lhand: Bone = .{
+                    .translation = .init(0, 0, -1),
+                };
+                const rshoulder: Bone = .{
+                    .translation = .init(0, 0, 1),
+                    .rotation = .rotateY(.identity(), 1),
+                };
+                const rhand: Bone = .{
+                    .translation = .init(0, 0, 1),
+                };
 
                 return .{
                     .root = root,
                     .body = body,
                     .head = head,
+                    .lshoulder = lshoulder,
+                    .lhand = lhand,
+                    .rshoulder = rshoulder,
+                    .rhand = rhand,
                 };
             }
         } = .{},
@@ -101,6 +119,10 @@ pub const Avatar = struct {
         pub const Pose = struct {
             root: Bone,
             body: Bone,
+            lshoulder: Bone,
+            lhand: Bone,
+            rshoulder: Bone,
+            rhand: Bone,
             head: Bone,
         };
 
@@ -113,13 +135,26 @@ pub const Avatar = struct {
             const avatar = g.state.avatars.get(this.id).?;
 
             const color = avatarColors[avatar.id % avatarColors.len];
-            const run = this.runPoser.pose(this, g);
-            const root = run.root.matrix();
 
+            const run = this.runPoser.pose(this, g);
+
+            const root = run.root.matrix();
             try g.ctx.cube.add(gpa, root.mul(.scaleScalar(0.2)), color);
 
             const body = root.mul(run.body.matrix());
             try g.ctx.cylinder.add(gpa, body.mul(.scaleScalar(0.45)), color);
+
+            const lshoulder = body.mul(run.lshoulder.matrix());
+            try g.ctx.icosphere_1.add(gpa, lshoulder.mul(.scale(.init(0.2, 0.2, 0.2))), color);
+
+            const lhand = lshoulder.mul(run.lhand.matrix());
+            try g.ctx.icosphere_1.add(gpa, lhand.mul(.scale(.init(0.2, 0.2, 0.2))), color);
+
+            const rshoulder = body.mul(run.rshoulder.matrix());
+            try g.ctx.icosphere_1.add(gpa, rshoulder.mul(.scale(.init(0.2, 0.2, 0.2))), color);
+
+            const rhand = rshoulder.mul(run.rhand.matrix());
+            try g.ctx.icosphere_1.add(gpa, rhand.mul(.scale(.init(0.2, 0.2, 0.2))), color);
 
             const head = body.mul(run.head.matrix());
             try g.ctx.head.add(gpa, head.mul(mat4.rotateY(@as(f32, std.math.pi) / 2).mul(.scale(.init(0.35, 0.6, 0.5)))), color);
