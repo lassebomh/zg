@@ -1,7 +1,7 @@
+const mat = @import("mat.zig");
 const math = @import("main.zig");
 const testing = math.testing;
 const vec = @import("vec.zig");
-const mat = @import("mat.zig");
 
 pub fn Quat(comptime Scalar: type) type {
     return extern struct {
@@ -27,7 +27,7 @@ pub fn Quat(comptime Scalar: type) type {
         }
 
         /// Returns the inverse of the quaternion.
-        pub inline fn inverse(q: *const Quat(T)) Quat(T) {
+        pub inline fn inverse(q: Quat(T)) Quat(T) {
             const s = 1 / q.len2();
             return init(-q.v.x() * s, -q.v.y() * s, -q.v.z() * s, q.v.w() * s);
         }
@@ -41,13 +41,13 @@ pub fn Quat(comptime Scalar: type) type {
         }
 
         /// Calculates the angle between two given quaternions.
-        pub inline fn angleBetween(a: *const Quat(T), b: *const Quat(T)) T {
+        pub inline fn angleBetween(a: Quat(T), b: Quat(T)) T {
             const d = Vec.dot(&a.v, &b.v);
             return math.acos(2 * d * d - 1);
         }
 
         /// Multiplies two quaternions
-        pub inline fn mul(a: *const Quat(T), b: *const Quat(T)) Quat(T) {
+        pub inline fn mul(a: Quat(T), b: Quat(T)) Quat(T) {
             const ax = a.v.x();
             const ay = a.v.y();
             const az = a.v.z();
@@ -66,27 +66,27 @@ pub fn Quat(comptime Scalar: type) type {
         }
 
         /// Adds two quaternions
-        pub inline fn add(a: *const Quat(T), b: *const Quat(T)) Quat(T) {
+        pub inline fn add(a: Quat(T), b: Quat(T)) Quat(T) {
             return init(a.v.x() + b.v.x(), a.v.y() + b.v.y(), a.v.z() + b.v.z(), a.v.w() + b.v.w());
         }
 
         /// Subtracts two quaternions
-        pub inline fn sub(a: *const Quat(T), b: *const Quat(T)) Quat(T) {
+        pub inline fn sub(a: Quat(T), b: Quat(T)) Quat(T) {
             return init(a.v.x() - b.v.x(), a.v.y() - b.v.y(), a.v.z() - b.v.z(), a.v.w() - b.v.w());
         }
 
         /// Multiplies a Quaternion by a scalar
-        pub inline fn mulScalar(q: *const Quat(T), s: T) Quat(T) {
+        pub inline fn mulScalar(q: Quat(T), s: T) Quat(T) {
             return init(q.v.x() * s, q.v.y() * s, q.v.z() * s, q.v.w() * s);
         }
 
         /// Divides a Quaternion by a scalar
-        pub inline fn divScalar(q: *const Quat(T), s: T) Quat(T) {
+        pub inline fn divScalar(q: Quat(T), s: T) Quat(T) {
             return init(q.v.x() / s, q.v.y() / s, q.v.z() / s, q.v.w() / s);
         }
 
         /// Rotates the give quaternion by the given angle, around the x-axis.
-        pub inline fn rotateX(q: *const Quat(T), angle: T) Quat(T) {
+        pub inline fn rotateX(q: Quat(T), angle: T) Quat(T) {
             const halfAngle = angle * 0.5;
 
             const qx = q.v.x();
@@ -101,7 +101,7 @@ pub fn Quat(comptime Scalar: type) type {
         }
 
         /// Rotates the give quaternion by the given angle, around the y-axis.
-        pub inline fn rotateY(q: *const Quat(T), angle: T) Quat(T) {
+        pub inline fn rotateY(q: Quat(T), angle: T) Quat(T) {
             const halfAngle = angle * 0.5;
 
             const qx = q.v.x();
@@ -116,7 +116,7 @@ pub fn Quat(comptime Scalar: type) type {
         }
 
         /// Rotates the give quaternion by the given angle, around the z-axis.
-        pub inline fn rotateZ(q: *const Quat(T), angle: T) Quat(T) {
+        pub inline fn rotateZ(q: Quat(T), angle: T) Quat(T) {
             const halfAngle = angle * 0.5;
 
             const qx = q.v.x();
@@ -131,7 +131,7 @@ pub fn Quat(comptime Scalar: type) type {
         }
 
         /// Calculates the spherical linear interpolation between two quaternions.
-        pub inline fn slerp(a: *const Quat(T), b: *const Quat(T), t: T) Quat(T) {
+        pub inline fn slerp(a: Quat(T), b: Quat(T), t: T) Quat(T) {
             const ax = a.v.x();
             const ay = a.v.y();
             const az = a.v.z();
@@ -168,12 +168,12 @@ pub fn Quat(comptime Scalar: type) type {
         }
 
         /// Calculates the conjugate of the given quaternion.
-        pub inline fn conjugate(q: *const Quat(T)) Quat(T) {
+        pub inline fn conjugate(q: Quat(T)) Quat(T) {
             return init(-q.v.x(), -q.v.y(), -q.v.z(), q.v.w());
         }
 
         /// Creates a quaternion from the given transformation matrix.
-        pub inline fn fromMat(comptime matT: type, m: *const matT) Quat(T) {
+        pub inline fn fromMat(comptime matT: type, m: matT) Quat(T) {
             var dst = Quat(T).identity();
             const trace = m.v[0].v[0] + m.v[1].v[1] + m.v[2].v[2];
 
@@ -241,12 +241,12 @@ pub fn Quat(comptime Scalar: type) type {
         }
 
         /// Returns the dot product of two quaternions.
-        pub inline fn dot(a: *const Quat(T), b: *const Quat(T)) T {
+        pub inline fn dot(a: Quat(T), b: Quat(T)) T {
             return a.v.x() * b.v.x() + a.v.y() * b.v.y() + a.v.z() * b.v.z() + a.v.w() * b.v.w();
         }
 
         /// Linearly interpolates between two quaternions.
-        pub inline fn lerp(a: *const Quat(T), b: *const Quat(T), t: T) Quat(T) {
+        pub inline fn lerp(a: Quat(T), b: Quat(T), t: T) Quat(T) {
             const xRet = a.v.x() + t * (b.v.x() - a.v.x());
             const yRet = a.v.y() + t * (b.v.y() - a.v.y());
             const zRet = a.v.z() + t * (b.v.z() - a.v.z());
@@ -256,17 +256,17 @@ pub fn Quat(comptime Scalar: type) type {
         }
 
         /// Computes the squared length of a given quaternion.
-        pub inline fn len2(q: *const Quat(T)) T {
+        pub inline fn len2(q: Quat(T)) T {
             return q.v.x() * q.v.x() + q.v.y() * q.v.y() + q.v.z() * q.v.z() + q.v.w() * q.v.w();
         }
 
         /// Computes the length of a given quaternion.
-        pub inline fn len(q: *const Quat(T)) T {
+        pub inline fn len(q: Quat(T)) T {
             return math.sqrt(q.v.x() * q.v.x() + q.v.y() * q.v.y() + q.v.z() * q.v.z() + q.v.w() * q.v.w());
         }
 
         /// Computes the normalized version of a given quaternion.
-        pub inline fn normalize(q: *const Quat(T)) Quat(T) {
+        pub inline fn normalize(q: Quat(T)) Quat(T) {
             const q0 = q.v.x();
             const q1 = q.v.y();
             const q2 = q.v.z();

@@ -244,7 +244,76 @@ pub fn SecondOrder(T: type) type {
     };
 }
 
+pub const SecondOrderQuat = struct {
+    const This = @This();
+    const Q = m.Quat;
+
+    previous: Q,
+    value: Q,
+    velocity: Q,
+    k1: f32,
+    k2: f32,
+    k3: f32,
+    first: bool,
+
+    pub fn init(naturalFreq: f32, dampingRatio: f32, response: f32) This {
+        const pi = std.math.pi;
+        return .{
+            .k1 = dampingRatio / (pi * naturalFreq),
+            .k2 = 1.0 / ((2.0 * pi * naturalFreq) * (2.0 * pi * naturalFreq)),
+            .k3 = response * dampingRatio / (2.0 * pi * naturalFreq),
+            .previous = Q.identity(),
+            .value = Q.identity(),
+            .velocity = Q.init(0, 0, 0, 0),
+            .first = true,
+        };
+    }
+
+    fn shortestPath(ref: *const Q, q: Q) Q {
+        if (ref.dot(q) < 0) return q.mulScalar(-1);
+        return q;
+    }
+
+    pub fn update(this: *This, dt: f32, newValue: Q) void {
+        if (dt == 0) return;
+
+        if (this.first) {
+            this.value = newValue;
+            this.previous = newValue;
+            this.first = false;
+            return;
+        }
+
+        const target = shortestPath(&this.value, newValue);
+        const prev = shortestPath(&target, this.previous);
+
+        const deltaSeconds = @max(@abs(dt / 1000.0), 0.00001);
+
+        const xd = target.sub(prev).divScalar(deltaSeconds);
+
+        const k2_stable = @max(
+            this.k2,
+            deltaSeconds * deltaSeconds * 0.5 + deltaSeconds * this.k1 * 0.5,
+            deltaSeconds * this.k1,
+        );
+
+        this.value = this.value.add(this.velocity.mulScalar(deltaSeconds));
+
+        const accel = target
+            .add(xd.mulScalar(this.k3))
+            .sub(this.value)
+            .sub(this.velocity.mulScalar(this.k1))
+            .divScalar(k2_stable);
+
+        this.velocity = this.velocity.add(accel.mulScalar(deltaSeconds));
+
+        this.value = this.value.normalize();
+        this.previous = target;
+    }
+};
+
 comptime {
     _ = SecondOrder(m.Vec3);
     _ = SecondOrder(m.Vec2);
+    _ = SecondOrderQuat;
 }

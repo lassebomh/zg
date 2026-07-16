@@ -25,7 +25,7 @@ const sceneVertexSource =
     \\  vColor = color;
     \\  vec4 world = model * vec4(position, 1.0);
     \\  vec4 worldNormal = normalModel * vec4(normal, 1.0);
-    \\  world = round(world * POS_QUANTIZATION) / POS_QUANTIZATION;
+    \\  // world = round(world * POS_QUANTIZATION) / POS_QUANTIZATION;
     \\  vBrightness = max(dot(normalize(vec3(0, 1, 0.3)), worldNormal.xyz), 0.0);
     \\  gl_Position = uProjection * uView * world;
     \\}
@@ -35,7 +35,7 @@ const sceneFragmentSource =
     \\#version 300 es
     \\precision mediump float;
     \\
-    \\#define AMBIENT_LIGHT 0.1 
+    \\#define AMBIENT_LIGHT 0.0
     \\
     \\in vec4 vColor;
     \\in float vBrightness;
@@ -64,7 +64,7 @@ const compFragmentSource =
     \\uniform sampler2D uDepth;
     \\uniform vec2 uResolution;
     \\
-    \\#define COLOR_QUANTIZATION 5.0
+    \\#define COLOR_QUANTIZATION 8.0
     \\#define EDGE_STRENGTH 1.0
     \\
     \\in vec2 vUV;

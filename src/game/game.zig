@@ -126,15 +126,15 @@ pub const State = struct {
 
             const aspectRatio = screen.x() / screen.y();
 
+            // const scale: f32 = 6;
             const scale: f32 = 6;
-            // const scale: f32 = 2;
 
             try this.ctx.render(.{
                 .view = m.Mat4x4.translate(
                     .init(0, 0, -10),
                 ).mul(
                     // .rotateX(0.3),
-                    .rotateX(0.9),
+                    .rotateX(1.1),
                 ).mul(
                     .translate(.init(-this.camera_pos.value.x(), -1, -this.camera_pos.value.y())),
                 ),

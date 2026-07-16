@@ -12,12 +12,12 @@ const mat4 = m.Mat4x4;
 const game = @import("./root.zig");
 
 const avatarColors = [_]m.Vec4{
-    .init(1, 0, 0, 1),
-    .init(0, 1, 0, 1),
-    .init(0, 0, 1, 1),
-    .init(1, 1, 0, 1),
-    .init(0, 1, 1, 1),
-    .init(1, 0, 1, 1),
+    .init(1.00, 0.15, 0.05, 1), // red
+    .init(0.1, 0.90, 0.10, 1), // green
+    .init(0.20, 0.45, 1.00, 1), // blue
+    .init(1.00, 0.7, 0.0, 1), // yellow
+    .init(0.10, 0.90, 0.90, 1), // cyan
+    .init(0.95, 0.15, 0.95, 1), // magenta
 };
 
 pub const Avatar = struct {
@@ -48,22 +48,62 @@ pub const Avatar = struct {
         this.position = this.position.add(vec3.init(this.inputs.lstick.x(), 0, this.inputs.lstick.y()).mulScalar(0.1));
     }
 
-    // pub const AvatarBone = struct {
-    //     translation: vec3,
-    //     rotation: quat,
-    //     scale: vec3,
-    // };
-
     pub const Render = struct {
         id: usize,
 
-        pos: lib.SecondOrder(vec3) = .init(4, 0.5, 1),
-        dir: lib.SecondOrder(vec2) = .init(3, 0.5, 0),
-        lean: lib.SecondOrder(vec2) = .init(2, 0.5, 0),
-        walk: lib.SecondOrder(vec2) = .init(7, 2, 0),
-        walk_angle: f32 = 0,
+        runPoser: struct {
+            targetDir: quat = .identity(),
+            lookDir: lib.SecondOrderQuat = .init(4, 0.5, 0),
+            pos: lib.SecondOrder(vec3) = .init(4, 0.6, 0),
 
-        move_dir: vec2 = .init(0, 0),
+            pub fn pose(this: *@This(), renderAvatar: *Render, g: *game.State.Render) Pose {
+                const avatar = g.state.avatars.get(renderAvatar.id).?;
+
+                if (avatar.inputs.lstick.len() > 0.2) {
+                    this.targetDir = quat.identity().rotateY(-std.math.atan2(avatar.inputs.lstick.y(), avatar.inputs.lstick.x()));
+                }
+
+                this.lookDir.update(g.dt, this.targetDir);
+                this.pos.update(g.dt, avatar.position);
+
+                const root: Bone = .{
+                    .translation = this.pos.value,
+                    .scale = .init(1, 1, 1),
+                };
+                const body: Bone = .{
+                    .translation = .init(0, 1, 0),
+                    .rotation = this.lookDir.value,
+                };
+                const head: Bone = .{
+                    .translation = .init(0, 1, 0),
+                };
+
+                return .{
+                    .root = root,
+                    .body = body,
+                    .head = head,
+                };
+            }
+        } = .{},
+
+        pub const Bone = struct {
+            translation: vec3 = .init(0, 0, 0),
+            rotation: quat = .identity(),
+            scale: vec3 = .init(1, 1, 1),
+
+            pub fn matrix(this: Bone) mat4 {
+                return mat4
+                    .translate(this.translation)
+                    .mul(mat4.rotateByQuaternion(this.rotation))
+                    .mul(mat4.scale(this.scale));
+            }
+        };
+
+        pub const Pose = struct {
+            root: Bone,
+            body: Bone,
+            head: Bone,
+        };
 
         pub fn init(g: *game.State.Render, avatar: Avatar) Render {
             _ = g; // autofix
@@ -74,53 +114,16 @@ pub const Avatar = struct {
             const avatar = g.state.avatars.get(this.id).?;
 
             const color = avatarColors[avatar.id % avatarColors.len];
+            const run = this.runPoser.pose(this, g);
+            const root = run.root.matrix();
 
-            this.pos.update(g.dt, avatar.position);
+            try g.ctx.cube.add(gpa, root.mul(.scaleScalar(0.2)), color);
 
-            if (avatar.inputs.lstick.len() > 0.1) {
-                this.move_dir = vec2.init(this.pos.velocity.x(), this.pos.velocity.z()).normalize(0.01);
-                const target_dir = avatar.inputs.lstick.normalize(0.01);
+            const body = root.mul(run.body.matrix());
+            try g.ctx.cylinder.add(gpa, body.mul(.scaleScalar(0.45)), color);
 
-                const dot = this.move_dir.dot(target_dir);
-                const cross = this.move_dir.x() * target_dir.y() - this.move_dir.y() * target_dir.x();
-
-                const angle = std.math.atan2(cross, dot);
-
-                this.walk.update(g.dt, .init(1, 0));
-
-                this.lean.update(g.dt, .init(0.15, angle));
-            } else {
-                this.walk.update(g.dt, .init(0, 0));
-                this.lean.update(g.dt, .init(-this.pos.velocity.len() * 0.1, 0));
-            }
-            this.walk_angle += this.pos.velocity.len() / 300 * g.dt;
-            this.dir.update(g.dt, this.move_dir);
-            this.dir.value = this.dir.value.normalize(0.1);
-
-            const angle: mat4 = .rotateY(std.math.atan2(-this.dir.value.y(), this.dir.value.x()) + std.math.pi / 2.0);
-            const lean = mat4.rotateZ(this.lean.value.y()).mul(.rotateX(this.lean.value.x()));
-
-            const jump = @abs(@cos(this.walk_angle)) * this.walk.value.x() / 2;
-
-            const gait = mat4.translate(.init(0, jump, 0));
-
-            const basemodel = mat4.translate(this.pos.value).mul(angle).mul(lean).mul(gait);
-
-            // try g.ctx.icosphere_3.add(gpa, basemodel.mul(.scale(.init(0.2, 0.2, 0.2))), .init(0, 0, 1, 1));
-
-            {
-                const scale: mat4 = .scale(.init(0.3, 0.4, 0.4));
-                const pos: mat4 = .translate(.init(0, 1, 0));
-
-                try g.ctx.head.add(gpa, basemodel.mul(pos).mul(scale), color);
-            }
-
-            {
-                const scale: mat4 = .scale(.init(0.35, 0.35, 0.35));
-                const transl: mat4 = .translate(.init(0, 0.5, 0));
-
-                try g.ctx.cylinder.add(gpa, basemodel.mul(transl).mul(scale), color);
-            }
+            const head = body.mul(run.head.matrix());
+            try g.ctx.head.add(gpa, head.mul(mat4.rotateY(@as(f32, std.math.pi) / 2).mul(.scale(.init(0.35, 0.6, 0.5)))), color);
         }
     };
 };

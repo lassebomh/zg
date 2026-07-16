@@ -323,8 +323,8 @@
       gameCanvas,
       (width, height) => {
         const downscale = 4;
-        gameWidth = Math.floor(width / downscale);
-        gameHeight = Math.floor(height / downscale);
+        gameWidth = Math.round(width / downscale);
+        gameHeight = Math.round(height / downscale);
         gameCanvas.width = gameWidth;
         gameCanvas.height = gameHeight;
         cancelAnimationFrame(frameRequest);
