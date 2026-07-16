@@ -1,2 +1,5 @@
 //! Entry module for TypeScript binding generation
-pub const js = @import("js/root.zig");
+pub const debug = @import("js/debug.zig");
+pub const inputs = @import("js/inputs.zig");
+
+// pub const gl = @import("js/wgl2.zig");

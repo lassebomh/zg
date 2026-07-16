@@ -30,8 +30,6 @@ pub fn main(init: std.process.Init) !void {
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.basename, ".zig")) continue;
 
-        // if (!std.mem.endsWith(u8, entry.basename, "test.zig")) continue; // MARK: Delete me
-
         const source = try src_dir.readFileAlloc(io, entry.path, gpa, .unlimited);
         const source_null_terminated = try gpa.dupeZ(u8, source);
 
@@ -57,6 +55,7 @@ pub fn main(init: std.process.Init) !void {
         \\// AUTO-GENERATED
         \\
         \\export type opaque_ptr = { readonly _: unique symbol};
+        \\
         \\
         \\
     );

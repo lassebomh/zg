@@ -2,6 +2,7 @@
 
 export type opaque_ptr = { readonly _: unique symbol};
 
+
 export interface WasmFnExports {
   /**
    * @returns *Input
@@ -31,6 +32,19 @@ export interface WasmFnExports {
    * @returns void
    */
   jsRenderTick(itick: number, alpha: number, screen_width: number, screen_height: number, peer_id: number): void;
+  /**
+   * @param enabled i32
+   * @param x f32
+   * @param y f32
+   * @param z f32
+   * @param pitch f32
+   * @param yaw f32
+   * @param scale f32
+   * @param width i32
+   * @param height i32
+   * @returns void
+   */
+  jsUpdateDebugCamera(enabled: number, x: number, y: number, z: number, pitch: number, yaw: number, scale: number, width: number, height: number): void;
 }
 
 export interface WasmEnv {

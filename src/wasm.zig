@@ -6,7 +6,12 @@ const game = @import("./game/root.zig");
 const debug = @import("./js/debug.zig");
 const Input = @import("./js/inputs.zig").Input;
 const GLContext = @import("./js/wgl2_context.zig").GLContext;
+const GLCamera = @import("./js/wgl2_context.zig").GLCamera;
 const m = @import("./math/main.zig");
+const vec2 = m.Vec2;
+const vec3 = m.Vec3;
+const quat = m.Quat;
+const mat4 = m.Mat4x4;
 
 var states: ArrayList(game.State) = .empty;
 
@@ -21,6 +26,8 @@ var input_buffer: Input = std.mem.zeroes(Input);
 
 var ctx: ?GLContext = null;
 var stateRender: ?game.State.Render = null;
+
+var debugCamera: ?GLCamera = null;
 
 export fn jsGetInputBufferPtr() *Input {
     return &input_buffer;
@@ -39,6 +46,33 @@ export fn jsRenderTick(itick: i32, alpha: f32, screen_width: i32, screen_height:
 
 export fn jsPullInputBuffer(itick: i32) void {
     pull_input_buffer(itick) catch |e| debug.fail(e);
+}
+
+export fn jsUpdateDebugCamera(enabled: i32, x: f32, y: f32, z: f32, pitch: f32, yaw: f32, scale: f32) void {
+    if (enabled == 0) {
+        debugCamera = null;
+        return;
+    }
+
+    debugCamera = .{
+        .view = m.Mat4x4.translate(
+            .init(0, 0, -scale),
+        ).mul(
+            .rotateX(pitch),
+        ).mul(
+            .rotateY(yaw),
+        ).mul(
+            .translate(.init(x, y, z)),
+        ),
+        .projection = .projection2D(.{
+            .left = -scale,
+            .right = scale,
+            .bottom = -scale,
+            .top = scale,
+            .near = 0.01,
+            .far = 25,
+        }),
+    };
 }
 
 fn render(tick: i32, alpha: f32, width: i32, height: i32, peer_id: i32) !void {
@@ -99,7 +133,7 @@ fn render(tick: i32, alpha: f32, width: i32, height: i32, peer_id: i32) !void {
     var ftick: f32 = @floatFromInt(tick);
     ftick += alpha;
 
-    try stateRender.?.render(wal, state_right, .init(@floatFromInt(width), @floatFromInt(height)), ftick, peer_id);
+    try stateRender.?.render(wal, state_right, .init(@floatFromInt(width), @floatFromInt(height)), ftick, peer_id, debugCamera);
 }
 
 fn pull_input_buffer(itick: i32) !void {

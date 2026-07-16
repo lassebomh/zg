@@ -1,9 +1,8 @@
 const std = @import("std");
 
 const debug = @import("../js/debug.zig");
-const js = @import("../js/root.zig");
+const Input = @import("../js/inputs.zig").Input;
 const lib = @import("../lib/root.zig");
-const v2 = lib.v2;
 const m = @import("../math/main.zig");
 const vec2 = m.Vec2;
 const vec3 = m.Vec3;
@@ -12,12 +11,12 @@ const mat4 = m.Mat4x4;
 const game = @import("./root.zig");
 
 const avatarColors = [_]m.Vec4{
-    .init(1.00, 0.15, 0.05, 1), // red
-    .init(0.1, 0.90, 0.10, 1), // green
-    .init(0.20, 0.45, 1.00, 1), // blue
-    .init(1.00, 0.7, 0.0, 1), // yellow
-    .init(0.10, 0.90, 0.90, 1), // cyan
-    .init(0.95, 0.15, 0.95, 1), // magenta
+    .init(1.00, 0.15, 0.05, 1),
+    .init(0.1, 0.90, 0.10, 1),
+    .init(0.20, 0.45, 1.00, 1),
+    .init(1.00, 0.7, 0.0, 1),
+    .init(0.10, 0.90, 0.90, 1),
+    .init(0.95, 0.15, 0.95, 1),
 };
 
 pub const Avatar = struct {
@@ -132,11 +131,11 @@ pub const Player = struct {
     id: usize,
     peer_id: i32,
     avatar_id: ?usize,
-    input: js.inputs.Input,
+    input: Input,
 
     pub fn upsert_avatar(this: *Player, g: *game.State) *Avatar {
         const avatar_id = this.avatar_id orelse init: {
-            const avatar = g.avatars.addOne() catch |e| js.debug.fail(e);
+            const avatar = g.avatars.addOne() catch |e| debug.fail(e);
             avatar.* = Avatar.create(avatar.id);
             this.avatar_id = avatar.id;
             break :init avatar.id;
@@ -158,14 +157,6 @@ pub const Player = struct {
             const len = @max(lstick.len(), 1);
 
             avatar.inputs.lstick = lstick.divScalar(len);
-
-            // var rstick = v2.zero;
-            // if (this.input.a) rstick[0] -= 1;
-            // if (this.input.d) rstick[0] += 1;
-            // if (this.input.w) rstick[1] -= 1;
-            // if (this.input.s) rstick[1] += 1;
-            // avatar.inputs.rstick = v2.clamp_length(rstick, 1);
-
             avatar.inputs.jump = this.input.space;
         }
     }

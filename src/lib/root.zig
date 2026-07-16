@@ -2,109 +2,11 @@ const std = @import("std");
 
 const debug = @import("../js/debug.zig");
 const m = @import("../math/main.zig");
-
-pub const RGBA = extern struct {
-    r: u32,
-    g: u32,
-    b: u32,
-    alpha: u32,
-
-    pub fn fromHex(comptime hex: []const u8) RGBA {
-        var rgba = RGBA{
-            .r = std.fmt.parseUnsigned(u32, hex[1..3], 16) catch unreachable,
-            .g = std.fmt.parseUnsigned(u32, hex[3..5], 16) catch unreachable,
-            .b = std.fmt.parseUnsigned(u32, hex[5..7], 16) catch unreachable,
-            .alpha = 255,
-        };
-        if (hex.len == 9) {
-            rgba.alpha = std.fmt.parseUnsigned(u32, hex[7..9], 16) catch unreachable;
-        }
-        return rgba;
-    }
-
-    pub fn fromHSL(degrees: f32, s: f32, l: f32) RGBA {
-        const h = @mod(degrees, 360.0);
-        const c = (1.0 - @abs(2.0 * l - 1.0)) * s;
-        const hp = h / 60.0;
-        const x = c * (1.0 - @abs(@mod(hp, 2.0) - 1.0));
-        const _m = l - c / 2.0;
-
-        var r: f32 = 0;
-        var g: f32 = 0;
-        var b: f32 = 0;
-
-        if (hp < 1) {
-            r = c;
-            g = x;
-        } else if (hp < 2) {
-            r = x;
-            g = c;
-        } else if (hp < 3) {
-            g = c;
-            b = x;
-        } else if (hp < 4) {
-            g = x;
-            b = c;
-        } else if (hp < 5) {
-            r = x;
-            b = c;
-        } else {
-            r = c;
-            b = x;
-        }
-
-        return RGBA{
-            .r = @intFromFloat((r + _m) * 255.0),
-            .g = @intFromFloat((g + _m) * 255.0),
-            .b = @intFromFloat((b + _m) * 255.0),
-            .alpha = 255,
-        };
-    }
-};
-
-pub const v2 = packed struct(u32) {
-    pub fn radians(angle: f32) v2.Value {
-        return .{
-            @cos(angle),
-            @sin(angle),
-        };
-    }
-
-    pub const Value = @Vector(2, f32);
-
-    pub const zero = fill(0);
-    pub const one = fill(1);
-
-    pub fn xy(x: f32, y: f32) v2.Value {
-        return .{ x, y };
-    }
-    pub fn fill(value: f32) v2.Value {
-        return @splat(value);
-    }
-
-    pub const lerp = std.math.lerp;
-
-    pub fn length(vec: v2.Value) f32 {
-        return std.math.hypot(vec[0], vec[1]);
-    }
-
-    pub fn distance(a: v2.Value, b: v2.Value) f32 {
-        return v2.length(a - b);
-    }
-
-    pub fn normalize(vec: v2.Value) v2.Value {
-        const dist = v2.length(vec);
-        if (dist == 0) {
-            return v2.zero;
-        } else {
-            return vec / v2.fill(dist);
-        }
-    }
-    pub fn clamp_length(vec: v2.Value, max_length: f32) v2.Value {
-        const dist: f32 = @max(v2.length(vec), max_length);
-        return vec / v2.fill(dist);
-    }
-};
+const vec2 = m.Vec2;
+const vec3 = m.Vec3;
+const vec4 = m.Vec4;
+const quat = m.Quat;
+const mat4 = m.Mat4x4;
 
 pub fn Container(comptime T: type, comptime capacity: comptime_int) type {
     const Error = error{OutOfMemory};
@@ -246,11 +148,10 @@ pub fn SecondOrder(T: type) type {
 
 pub const SecondOrderQuat = struct {
     const This = @This();
-    const Q = m.Quat;
 
-    previous: Q,
-    value: Q,
-    velocity: Q,
+    previous: quat,
+    value: quat,
+    velocity: quat,
     k1: f32,
     k2: f32,
     k3: f32,
@@ -262,19 +163,19 @@ pub const SecondOrderQuat = struct {
             .k1 = dampingRatio / (pi * naturalFreq),
             .k2 = 1.0 / ((2.0 * pi * naturalFreq) * (2.0 * pi * naturalFreq)),
             .k3 = response * dampingRatio / (2.0 * pi * naturalFreq),
-            .previous = Q.identity(),
-            .value = Q.identity(),
-            .velocity = Q.init(0, 0, 0, 0),
+            .previous = quat.identity(),
+            .value = quat.identity(),
+            .velocity = quat.init(0, 0, 0, 0),
             .first = true,
         };
     }
 
-    fn shortestPath(ref: *const Q, q: Q) Q {
+    fn shortestPath(ref: *const quat, q: quat) quat {
         if (ref.dot(q) < 0) return q.mulScalar(-1);
         return q;
     }
 
-    pub fn update(this: *This, dt: f32, newValue: Q) void {
+    pub fn update(this: *This, dt: f32, newValue: quat) void {
         if (dt == 0) return;
 
         if (this.first) {
@@ -313,7 +214,7 @@ pub const SecondOrderQuat = struct {
 };
 
 comptime {
-    _ = SecondOrder(m.Vec3);
-    _ = SecondOrder(m.Vec2);
+    _ = SecondOrder(vec3);
+    _ = SecondOrder(vec2);
     _ = SecondOrderQuat;
 }

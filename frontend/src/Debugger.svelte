@@ -175,9 +175,11 @@
     loopEnabled: boolean;
     cameraX: number;
     cameraY: number;
-    cameraZoomPosition: number;
-    cameraZoomPositionChange: number;
+    cameraZ: number;
+    cameraPitch: number;
+    cameraYaw: number;
     cameraZoom: number;
+    cameraEnable: boolean;
     stateQuery: string;
   };
 
@@ -194,7 +196,7 @@
   import { onMount } from "svelte";
   import { onResize } from "./canvas";
   import { createInputProxy, InputByteLength, inputControl } from "./inputs";
-  import { abortSignal, fail, now } from "./lib/utils.js";
+  import { abortSignal, fail, now, sleep } from "./lib/utils.js";
 
   const PLAYER_COLORS = ["#ef4444", "#3b9eed", "#45b358", "#ebc934"];
 
@@ -221,9 +223,11 @@
     onion: 0,
     cameraX: 0,
     cameraY: 0,
-    cameraZoomPosition: 0,
-    cameraZoomPositionChange: 0,
-    cameraZoom: 1,
+    cameraZ: 0,
+    cameraPitch: 0,
+    cameraYaw: 0,
+    cameraZoom: 2.5,
+    cameraEnable: false,
     stateQuery: "",
   });
 
@@ -314,7 +318,20 @@
 
       if (ui.playheadTick < 0) ui.playheadTick = 0;
 
-      wasm.jsRenderTick(tick, alpha, gameWidth, gameHeight, ui.currentPeerId);
+      if (gameWidth != 0 && gameHeight != 0) {
+        wasm.jsUpdateDebugCamera(
+          ui.cameraEnable ? 1 : 0,
+          ui.cameraX,
+          ui.cameraY,
+          ui.cameraZ,
+          ui.cameraPitch,
+          ui.cameraYaw,
+          Math.pow(2, ui.cameraZoom),
+          gameWidth,
+          gameHeight,
+        );
+        wasm.jsRenderTick(tick, alpha, gameWidth, gameHeight, ui.currentPeerId);
+      }
       renderTracks();
       frameRequest = requestAnimationFrame(render);
     }
@@ -545,6 +562,12 @@
     button.addEventListener("click", () => (ui.alphaLock = !ui.alphaLock), { signal });
     return abort;
   }
+  function cameraToggleButton(button: HTMLButtonElement) {
+    const { abort, signal } = abortSignal();
+    button.addEventListener("click", () => (ui.cameraEnable = !ui.cameraEnable), { signal });
+
+    return abort;
+  }
 
   function stepButton(step: number) {
     return (button: HTMLElement) => {
@@ -737,7 +760,42 @@
   <div id="canvas-target">
     <canvas id="canvas" bind:this={gameCanvas}></canvas>
   </div>
-  <div id="canvas-overlay" class:panning={temp.canvasOverlayPanning}>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    id="canvas-overlay"
+    class:panning={temp.canvasOverlayPanning}
+    onwheel={(e) => {
+      e.preventDefault();
+      ui.cameraZoom -= e.deltaY / 1000;
+    }}
+    // Pan with mouse drag
+    onmousedown={(e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+
+      temp.canvasOverlayPanning = true;
+      const { abort, signal } = abortSignal(() => (temp.canvasOverlayPanning = false));
+
+      const startPitch = ui.cameraPitch;
+      const startYaw = ui.cameraYaw;
+
+      const start = e;
+
+      window.addEventListener(
+        "mousemove",
+        (e) => {
+          const dx = e.clientX - start.clientX;
+          const dy = e.clientY - start.clientY;
+
+          ui.cameraYaw = startYaw + dx / 100;
+          ui.cameraPitch = startPitch + dy / 100;
+        },
+        { passive: true, signal },
+      );
+
+      window.addEventListener("mouseup", abort);
+    }}
+  >
     <div class="controls">
       <div class="controls-row">
         <button
@@ -869,6 +927,7 @@
           {@attach shortcut({ alt: true, key: "v" })}
           onclick={async () => {
             if (!confirm("Are you sure you want to reset?")) return;
+            await sleep(1); // needed because the save interval will otherwise restore it after its deleted.
             await saveStore.delete();
             location.reload();
           }}
@@ -892,18 +951,15 @@
             <path d="M14 10v6" />
           </svg>
         </button>
+
+        <button
+          {@attach cameraToggleButton}
+          {@attach shortcut({ alt: true, key: "b" })}
+          class:active={ui.cameraEnable}
+          title="Disable frame interpolation">C</button
+        >
       </div>
     </div>
-    <!-- <pre class="yaml" id="inputs-viewer"></pre>
-    <div id="state-viewer">
-      <input
-        type="text"
-        id="state-viewer-input"
-        class:invalid={temp.invalidStateQuery}
-        placeholder="Type $ to query the state"
-      />
-      <pre class="yaml" id="state-viewer-output"></pre>
-    </div> -->
   </div>
 </div>
 
@@ -1067,129 +1123,5 @@
     &:focus {
       outline: none;
     }
-  }
-  /* .controls select {
-    font-family: monospace;
-    font-size: 12px;
-    background-color: #222;
-    color: #ccc;
-    border: 1px solid #333;
-    border-radius: 3px;
-    padding: 0.2rem 0.3rem;
-    height: 1.75rem;
-    &:focus {
-      outline: 1px solid cornflowerblue;
-    }
-  } */
-  .controls input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    height: 4px;
-    background: #333;
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-
-    &::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 10px;
-      height: 10px;
-      background: #ccc;
-      border-radius: 50%;
-      border: none;
-    }
-    &::-moz-range-thumb {
-      width: 10px;
-      height: 10px;
-      background: #ccc;
-      border-radius: 50%;
-      border: none;
-    }
-    &:hover {
-      background: #444;
-      &::-webkit-slider-thumb {
-        background: #fff;
-      }
-      &::-moz-range-thumb {
-        background: #fff;
-      }
-    }
-  }
-
-  .divider {
-    width: 1px;
-    height: 1.5rem;
-    margin: 0 5px;
-    background-color: #333;
-  }
-
-  .dropdown {
-    position: relative;
-    justify-content: center;
-    align-items: center;
-
-    &:hover .dropdown-body {
-      visibility: visible;
-    }
-
-    .dropdown-body {
-      visibility: hidden;
-      position: absolute;
-      top: 100%;
-    }
-  }
-
-  #inputs-viewer {
-    padding: 0.4rem 0.6rem;
-  }
-
-  #inputs-viewer,
-  #state-viewer {
-    z-index: 20;
-
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    width: 200px;
-    font-size: 11px;
-    background-color: rgba(17, 17, 17, 0.9);
-    border: 1px solid #333;
-    border-radius: 8px;
-    z-index: 20;
-    user-select: text;
-    pointer-events: all;
-    cursor: auto;
-    scrollbar-color: #333 transparent;
-  }
-
-  #state-viewer {
-    left: unset;
-    right: 8px;
-    display: flex;
-    flex-direction: column;
-    width: 250px;
-  }
-
-  #state-viewer-input {
-    background: none;
-    border: none;
-    color: white;
-    font: inherit;
-    padding: 0.4rem 0.6rem;
-    font-size: 12px;
-
-    &:active,
-    &:focus {
-      outline: none;
-    }
-    &.invalid {
-      background-color: #77000050;
-    }
-  }
-  #state-viewer-output {
-    border-top: 1px solid #333;
-    padding: 0.4rem 0.6rem;
-    overflow-y: scroll;
-    max-height: 50vh;
   }
 </style>

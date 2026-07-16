@@ -3,6 +3,11 @@ const std = @import("std");
 const gl = @import("../js/wgl2.zig");
 const ObjMesh = @import("../lib/obj.zig").ObjMesh;
 const m = @import("../math/main.zig");
+const vec2 = m.Vec2;
+const vec3 = m.Vec3;
+const vec4 = m.Vec4;
+const quat = m.Quat;
+const mat4 = m.Mat4x4;
 
 const sceneVertexSource =
     \\#version 300 es
@@ -133,16 +138,16 @@ pub const GLObject = struct {
     aNormalModels: *anyopaque,
     aColors: *anyopaque,
 
-    normalModels: std.ArrayList(m.Mat4x4) = .empty,
-    models: std.ArrayList(m.Mat4x4) = .empty,
-    colors: std.ArrayList(m.Vec4) = .empty,
+    normalModels: std.ArrayList(mat4) = .empty,
+    models: std.ArrayList(mat4) = .empty,
+    colors: std.ArrayList(vec4) = .empty,
 
     elements: i32 = 0,
 
     data: []f32 = undefined,
     idxs: []u32 = undefined,
 
-    pub fn add(this: *This, gpa: std.mem.Allocator, model: m.Mat4x4, color: m.Vec4) !void {
+    pub fn add(this: *This, gpa: std.mem.Allocator, model: mat4, color: vec4) !void {
         const newModel = try this.models.addOne(gpa);
         newModel.* = model;
         const newNormalModel = try this.normalModels.addOne(gpa);
@@ -262,9 +267,8 @@ pub const GLObject = struct {
 };
 
 pub const GLCamera = struct {
-    view: m.Mat4x4,
-    projection: m.Mat4x4,
-    screen: m.Vec2,
+    view: mat4,
+    projection: mat4,
 };
 
 pub const GLContext = struct {
@@ -289,7 +293,7 @@ pub const GLContext = struct {
     cylinder: GLObject = undefined,
     head: GLObject = undefined,
 
-    screen: m.Vec2,
+    screen: vec2,
 
     pub fn create(gpa: std.mem.Allocator) !This {
         var this = This{
@@ -376,9 +380,9 @@ pub const GLContext = struct {
         return this;
     }
 
-    pub fn render(this: *This, camera: GLCamera) !void {
-        if (!this.screen.eql(camera.screen)) {
-            this.screen = camera.screen;
+    pub fn render(this: *This, camera: GLCamera, screen: vec2) !void {
+        if (!this.screen.eql(screen)) {
+            this.screen = screen;
             gl.bindTexture(.TEXTURE_2D, this.colorTex);
             gl.texImage2D(.TEXTURE_2D, 0, .RGBA8, @intFromFloat(this.screen.x()), @intFromFloat(this.screen.y()), 0, .RGBA, .UNSIGNED_BYTE);
             gl.bindTexture(.TEXTURE_2D, this.depthTex);
@@ -392,12 +396,16 @@ pub const GLContext = struct {
         gl.enable(.CULL_FACE);
         gl.bindFramebuffer(.FRAMEBUFFER, this.fbo);
 
-        gl.viewport(0, 0, @intFromFloat(camera.screen.x()), @intFromFloat(camera.screen.y()));
+        gl.viewport(0, 0, @intFromFloat(this.screen.x()), @intFromFloat(this.screen.y()));
         gl.clear(clear);
 
         gl.useProgram(this.sceneProgram);
 
-        gl.uniformMatrix4fv(this.uProjection, false, camera.projection);
+        var projection = camera.projection;
+
+        projection.v[0].v[0] *= screen.y() / screen.x();
+
+        gl.uniformMatrix4fv(this.uProjection, false, projection);
         gl.uniformMatrix4fv(this.uView, false, camera.view);
 
         this.icosphere_1.render();
@@ -411,9 +419,9 @@ pub const GLContext = struct {
 
         gl.disable(.DEPTH_TEST);
         gl.useProgram(this.compProgram);
-        gl.viewport(0, 0, @intFromFloat(camera.screen.x()), @intFromFloat(camera.screen.y()));
+        gl.viewport(0, 0, @intFromFloat(this.screen.x()), @intFromFloat(this.screen.y()));
 
-        gl.uniform2f(this.uResolution, camera.screen.x(), camera.screen.y());
+        gl.uniform2f(this.uResolution, this.screen.x(), this.screen.y());
 
         gl.activeTexture(.TEXTURE0);
         gl.bindTexture(.TEXTURE_2D, this.colorTex);

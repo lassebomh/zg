@@ -42,7 +42,7 @@ pub const GLEnum_BlendEquation = enum(i32) {
 
 pub const GLEnum_ParameterInformation = enum(i32) {
     BLEND_EQUATION = 0x8009, // Passed to getParameter to get the current RGB blend function.
-    BLEND_EQUATION_RGB = 0x8009, // Passed to getParameter to get the current RGB blend function. Same as BLEND_EQUATION
+    // BLEND_EQUATION_RGB = 0x8009, // Passed to getParameter to get the current RGB blend function. Same as BLEND_EQUATION
     BLEND_EQUATION_ALPHA = 0x883D, // Passed to getParameter to get the current alpha blend function.
     BLEND_DST_RGB = 0x80C8, // Passed to getParameter to get the current destination RGB blend function.
     BLEND_SRC_RGB = 0x80C9, // Passed to getParameter to get the current source RGB blend function.
@@ -658,7 +658,7 @@ pub const GLEnum_Miscellaneous = enum(i32) {
     DYNAMIC_COPY = 0x88EA,
     DEPTH_COMPONENT32F = 0x8CAC,
     DEPTH32F_STENCIL8 = 0x8CAD,
-    INVALID_INDEX = 0xFFFFFFFF,
+    // INVALID_INDEX = 0xFFFFFFFF,
     TIMEOUT_IGNORED = -1,
     MAX_CLIENT_WAIT_TIMEOUT_WEBGL = 0x9247,
 };

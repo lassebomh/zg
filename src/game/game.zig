@@ -3,17 +3,15 @@ const std = @import("std");
 const debug = @import("../js/debug.zig");
 const Input = @import("../js/inputs.zig").Input;
 const GLContext = @import("../js/wgl2_context.zig").GLContext;
+const GLCamera = @import("../js/wgl2_context.zig").GLCamera;
 const ObjMesh = @import("../lib/obj.zig").ObjMesh;
 const lib = @import("../lib/root.zig");
-const RGBA = lib.RGBA;
-const v2 = lib.v2;
 const m = @import("../math/main.zig");
 const game = @import("./root.zig");
 
 pub const State = struct {
     avatars: lib.Container(game.Avatar, MaxPlayers), // should multiply if controllers are supported,
     players: lib.Container(game.Player, MaxPlayers),
-    level: game.Level,
 
     pub const MaxPlayers = 16;
     pub const TickRate: comptime_float = 1000 / 60;
@@ -49,7 +47,6 @@ pub const State = struct {
         const state: State = .{
             .avatars = lib.Container(game.Avatar, MaxPlayers).init(),
             .players = lib.Container(game.Player, MaxPlayers).init(),
-            .level = game.Level.init() catch |e| debug.fail(e),
         };
 
         return state;
@@ -77,7 +74,7 @@ pub const State = struct {
             };
         }
 
-        pub fn render(this: *Render, gpa: std.mem.Allocator, state: *State, screen: m.Vec2, tick: f32, peer_id: i32) !void {
+        pub fn render(this: *Render, gpa: std.mem.Allocator, state: *State, screen: m.Vec2, tick: f32, peerId: i32, cameraOverride: ?GLCamera) !void {
             this.state = state;
 
             const prevTick = this.tick;
@@ -110,7 +107,7 @@ pub const State = struct {
             // move camera to current avatar
             var peerAvatar: ?game.Avatar = null;
             for (this.state.players.iter()) |player| {
-                if (player.peer_id == peer_id) {
+                if (player.peer_id == peerId) {
                     for (this.state.avatars.iter()) |avatar| {
                         if (avatar.id == player.avatar_id) {
                             peerAvatar = avatar;
@@ -124,30 +121,30 @@ pub const State = struct {
                 this.camera_pos.update(this.dt, avatar.position);
             }
 
-            const aspectRatio = screen.x() / screen.y();
+            if (cameraOverride) |camera| {
+                try this.ctx.render(camera, screen);
+            } else {
+                const scale: f32 = 6;
 
-            // const scale: f32 = 6;
-            const scale: f32 = 6;
-
-            try this.ctx.render(.{
-                .view = m.Mat4x4.translate(
-                    .init(0, 0, -10),
-                ).mul(
-                    // .rotateX(0.3),
-                    .rotateX(1.1),
-                ).mul(
-                    .translate(.init(-this.camera_pos.value.x(), -1, -this.camera_pos.value.y())),
-                ),
-                .projection = .projection2D(.{
-                    .left = -scale * aspectRatio,
-                    .right = scale * aspectRatio,
-                    .bottom = -scale,
-                    .top = scale,
-                    .near = 0.01,
-                    .far = 25,
-                }),
-                .screen = screen,
-            });
+                try this.ctx.render(.{
+                    .view = m.Mat4x4.translate(
+                        .init(0, 0, -10),
+                    ).mul(
+                        // .rotateX(0.3),
+                        .rotateX(1.1),
+                    ).mul(
+                        .translate(.init(-this.camera_pos.value.x(), -1, -this.camera_pos.value.y())),
+                    ),
+                    .projection = .projection2D(.{
+                        .left = -scale,
+                        .right = scale,
+                        .bottom = -scale,
+                        .top = scale,
+                        .near = 0.01,
+                        .far = 25,
+                    }),
+                }, screen);
+            }
         }
     };
 };
