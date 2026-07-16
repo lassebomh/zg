@@ -56,7 +56,7 @@ export fn jsUpdateDebugCamera(enabled: i32, x: f32, y: f32, z: f32, pitch: f32, 
 
     debugCamera = .{
         .view = m.Mat4x4.translate(
-            .init(0, 0, -scale),
+            .init(0, 0, -12),
         ).mul(
             .rotateX(pitch),
         ).mul(
@@ -69,7 +69,7 @@ export fn jsUpdateDebugCamera(enabled: i32, x: f32, y: f32, z: f32, pitch: f32, 
             .right = scale,
             .bottom = -scale,
             .top = scale,
-            .near = 0.01,
+            .near = 0.0001,
             .far = 25,
         }),
     };

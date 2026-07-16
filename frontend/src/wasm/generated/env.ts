@@ -1,7 +1,6 @@
 // AUTO-GENERATED
 
-export type opaque_ptr = { readonly _: unique symbol};
-
+export type opaque_ptr = { readonly _: unique symbol };
 
 export interface WasmFnExports {
   /**
@@ -40,11 +39,17 @@ export interface WasmFnExports {
    * @param pitch f32
    * @param yaw f32
    * @param scale f32
-   * @param width i32
-   * @param height i32
    * @returns void
    */
-  jsUpdateDebugCamera(enabled: number, x: number, y: number, z: number, pitch: number, yaw: number, scale: number, width: number, height: number): void;
+  jsUpdateDebugCamera(
+    enabled: number,
+    x: number,
+    y: number,
+    z: number,
+    pitch: number,
+    yaw: number,
+    scale: number,
+  ): void;
 }
 
 export interface WasmEnv {
@@ -122,7 +127,14 @@ export interface WasmEnv {
    * @param offset i32
    * @returns void
    */
-  _vertexAttribPointer(index: number, size: number, type: number, normalized: number, stride: number, offset: number): void;
+  _vertexAttribPointer(
+    index: number,
+    size: number,
+    type: number,
+    normalized: number,
+    stride: number,
+    offset: number,
+  ): void;
   /**
    * @param target GLEnum_Texture
    * @returns void
@@ -221,13 +233,6 @@ export interface WasmEnv {
    */
   enableVertexAttribArray(attribLocation: number): void;
   /**
-   * @param commandsTypesPtr *[commandsCap]CommandType
-   * @param commandsArgsPtr *[commandsCap][7]f32
-   * @param commandsLen u8
-   * @returns void
-   */
-  flush_commands(commandsTypesPtr: number, commandsArgsPtr: number, commandsLen: number): void;
-  /**
    * @param target GLEnum_FramebufferOrRenderbuffer
    * @param attachment GLEnum_FramebufferOrRenderbuffer
    * @param textarget GLEnum_Texture
@@ -262,7 +267,16 @@ export interface WasmEnv {
    * @param type GLEnum_DataType
    * @returns void
    */
-  texImage2D(target: number, level: number, internalformat: number, width: number, height: number, border: number, format: number, type: number): void;
+  texImage2D(
+    target: number,
+    level: number,
+    internalformat: number,
+    width: number,
+    height: number,
+    border: number,
+    format: number,
+    type: number,
+  ): void;
   /**
    * @param target GLEnum_Texture
    * @param pname GLEnum_Texture

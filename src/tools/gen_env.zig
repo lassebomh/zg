@@ -57,7 +57,6 @@ pub fn main(init: std.process.Init) !void {
         \\export type opaque_ptr = { readonly _: unique symbol};
         \\
         \\
-        \\
     );
     try emitInterface(gpa, &out, "WasmFnExports", exports.items);
     try out.appendSlice(gpa, "\n");

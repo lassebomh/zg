@@ -149,10 +149,6 @@
     js_clear() {
       console.clear();
     },
-    flush_commands(commandsTypesPtr, commandsArgsPtr, commandsLen) {
-      // sendCanvasCommands?.(commandsTypesPtr, commandsArgsPtr, commandsLen);
-      fail();
-    },
   });
 
   function flushInputBuffer(tick: number, buffer: ArrayBuffer) {
@@ -162,7 +158,6 @@
   }
 
   type UIState = {
-    alphaLock: boolean;
     playheadTick: number;
     viewStart: number;
     viewEnd: number;
@@ -210,7 +205,6 @@
   });
 
   let ui = $state<UIState>({
-    alphaLock: false,
     playheadTick: 0,
     viewStart: -30,
     viewEnd: 30,
@@ -232,7 +226,7 @@
   });
 
   const tick = $derived(Math.floor(ui.playheadTick));
-  const alpha = $derived(ui.alphaLock ? 0 : ui.playheadTick - tick);
+  const alpha = $derived(ui.playheadTick - tick);
 
   if (save) {
     ui = save.ui;
@@ -318,20 +312,17 @@
 
       if (ui.playheadTick < 0) ui.playheadTick = 0;
 
-      if (gameWidth != 0 && gameHeight != 0) {
-        wasm.jsUpdateDebugCamera(
-          ui.cameraEnable ? 1 : 0,
-          ui.cameraX,
-          ui.cameraY,
-          ui.cameraZ,
-          ui.cameraPitch,
-          ui.cameraYaw,
-          Math.pow(2, ui.cameraZoom),
-          gameWidth,
-          gameHeight,
-        );
-        wasm.jsRenderTick(tick, alpha, gameWidth, gameHeight, ui.currentPeerId);
-      }
+      wasm.jsUpdateDebugCamera(
+        ui.cameraEnable ? 1 : 0,
+        ui.cameraX,
+        ui.cameraY,
+        ui.cameraZ,
+        ui.cameraPitch,
+        ui.cameraYaw,
+        Math.pow(2, ui.cameraZoom),
+      );
+      wasm.jsRenderTick(tick, alpha, gameWidth, gameHeight, ui.currentPeerId);
+
       renderTracks();
       frameRequest = requestAnimationFrame(render);
     }
@@ -480,8 +471,7 @@
       tracksCtx.lineWidth = 2 * dpr;
 
       // View playhead
-
-      if (!ui.alphaLock) {
+      {
         const playheadX = tickX(tick + alpha);
         const chevH = 8 * dpr;
         const chevW = 4 * dpr;
@@ -491,18 +481,7 @@
         tracksCtx.lineTo(playheadX, h - chevH);
         tracksCtx.closePath();
         tracksCtx.fill();
-      } else {
-        const playheadX = tickX(tick);
-        const chevH = 8 * dpr;
-        const chevW = 8 * dpr;
-        tracksCtx.beginPath();
-        tracksCtx.moveTo(playheadX + chevW, h);
-        tracksCtx.lineTo(playheadX, h);
-        tracksCtx.lineTo(playheadX, h - chevH);
-        tracksCtx.closePath();
-        tracksCtx.fill();
       }
-
       for (let t = firstTick; t <= ui.viewEnd; t += subStep) {
         if (t < -0.000001) {
           continue;
@@ -557,11 +536,6 @@
     return abort;
   }
 
-  function alphaButton(button: HTMLButtonElement) {
-    const { abort, signal } = abortSignal();
-    button.addEventListener("click", () => (ui.alphaLock = !ui.alphaLock), { signal });
-    return abort;
-  }
   function cameraToggleButton(button: HTMLButtonElement) {
     const { abort, signal } = abortSignal();
     button.addEventListener("click", () => (ui.cameraEnable = !ui.cameraEnable), { signal });
@@ -902,16 +876,9 @@
         </button>
 
         <button
-          {@attach alphaButton}
-          {@attach shortcut({ alt: true, key: "x" })}
-          class:active={ui.alphaLock}
-          title="Disable frame interpolation">α</button
-        >
-
-        <button
           title="Add loop marker"
           {@attach markerButton}
-          {@attach shortcut({ alt: true, key: "c" })}
+          {@attach shortcut({ alt: true, key: "x" })}
           class:active={ui.loopStart !== undefined && ui.loopEnd !== undefined}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
@@ -924,7 +891,7 @@
         </button>
 
         <button
-          {@attach shortcut({ alt: true, key: "v" })}
+          {@attach shortcut({ alt: true, key: "c" })}
           onclick={async () => {
             if (!confirm("Are you sure you want to reset?")) return;
             await sleep(1); // needed because the save interval will otherwise restore it after its deleted.
@@ -954,7 +921,7 @@
 
         <button
           {@attach cameraToggleButton}
-          {@attach shortcut({ alt: true, key: "b" })}
+          {@attach shortcut({ alt: true, key: "v" })}
           class:active={ui.cameraEnable}
           title="Disable frame interpolation">C</button
         >

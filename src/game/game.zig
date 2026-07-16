@@ -7,6 +7,10 @@ const GLCamera = @import("../js/wgl2_context.zig").GLCamera;
 const ObjMesh = @import("../lib/obj.zig").ObjMesh;
 const lib = @import("../lib/root.zig");
 const m = @import("../math/main.zig");
+const vec2 = m.Vec2;
+const vec3 = m.Vec3;
+const quat = m.Quat;
+const mat4 = m.Mat4x4;
 const game = @import("./root.zig");
 
 pub const State = struct {
@@ -62,7 +66,7 @@ pub const State = struct {
 
         avatars: lib.Container(game.Avatar.Render, MaxPlayers),
 
-        camera_pos: lib.SecondOrder(m.Vec3) = .init(5, 3, 0),
+        camera_pos: lib.SecondOrder(vec3) = .init(5, 3, 0),
 
         pub fn init(ctx: *GLContext, state: *State) Render {
             return .{
@@ -91,7 +95,7 @@ pub const State = struct {
             }
 
             // begin render
-            try this.ctx.cube.add(gpa, m.Mat4x4.translate(.init(0, 0, 0)).mul(.scale(.init(6, 0.001, 6))), .init(1, 1, 1, 1));
+            try this.ctx.cube.add(gpa, mat4.translate(.init(0, 0, 0)).mul(.scale(.init(6, 0.001, 6))), .init(1, 1, 1, 1));
 
             for (this.state.avatars.iter()) |avatar| {
                 // create the avatar if it doesn't exist
@@ -127,10 +131,9 @@ pub const State = struct {
                 const scale: f32 = 6;
 
                 try this.ctx.render(.{
-                    .view = m.Mat4x4.translate(
+                    .view = mat4.translate(
                         .init(0, 0, -10),
                     ).mul(
-                        // .rotateX(0.3),
                         .rotateX(1.1),
                     ).mul(
                         .translate(.init(-this.camera_pos.value.x(), -1, -this.camera_pos.value.y())),
