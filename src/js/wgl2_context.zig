@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const debug = @import("../js/debug.zig");
 const gl = @import("../js/wgl2.zig");
 const ObjMesh = @import("../lib/obj.zig").ObjMesh;
 const m = @import("../math/main.zig");
@@ -246,6 +247,12 @@ pub const GLObject = struct {
     }
 
     pub fn render(this: *This) void {
+        defer this.models.clearRetainingCapacity();
+        defer this.normalModels.clearRetainingCapacity();
+        defer this.colors.clearRetainingCapacity();
+
+        if (this.models.items.len == 0) return;
+
         gl.bindVertexArray(this.vao);
 
         gl.bindBuffer(.ARRAY_BUFFER, this.aModels);
@@ -259,10 +266,6 @@ pub const GLObject = struct {
 
         gl.drawElementsInstanced(.TRIANGLES, @intCast(this.idxs.len), .UNSIGNED_INT, 0, @intCast(this.models.items.len));
         gl.bindVertexArray(null);
-
-        this.models.clearRetainingCapacity();
-        this.normalModels.clearRetainingCapacity();
-        this.colors.clearRetainingCapacity();
     }
 };
 

@@ -50,81 +50,9 @@ pub const Avatar = struct {
     pub const Render = struct {
         id: usize,
 
-        runPoser: struct {
-            targetDir: quat = .identity(),
-            lookDir: lib.SecondOrderQuat = .init(4, 0.5, 0),
-            pos: lib.SecondOrder(vec3) = .init(4, 0.6, 0),
-
-            pub fn pose(this: *@This(), renderAvatar: *Render, g: *game.State.Render) Pose {
-                const avatar = g.state.avatars.get(renderAvatar.id).?;
-
-                if (avatar.inputs.lstick.len() > 0.2) {
-                    this.targetDir = quat.identity().rotateY(-std.math.atan2(avatar.inputs.lstick.y(), avatar.inputs.lstick.x()));
-                }
-
-                this.lookDir.update(g.dt, this.targetDir);
-                this.pos.update(g.dt, avatar.position);
-
-                const root: Bone = .{
-                    .translation = this.pos.value,
-                    .scale = .init(1, 1, 1),
-                };
-                const body: Bone = .{
-                    .translation = .init(0, 1, 0),
-                    .rotation = this.lookDir.value,
-                };
-                const head: Bone = .{
-                    .translation = .init(0, 1, 0),
-                };
-                const lshoulder: Bone = .{
-                    .translation = .init(0, 0, -1),
-                    .rotation = .rotateY(.identity(), -1),
-                };
-                const lhand: Bone = .{
-                    .translation = .init(0, 0, -1),
-                };
-                const rshoulder: Bone = .{
-                    .translation = .init(0, 0, 1),
-                    .rotation = .rotateY(.identity(), 1),
-                };
-                const rhand: Bone = .{
-                    .translation = .init(0, 0, 1),
-                };
-
-                return .{
-                    .root = root,
-                    .body = body,
-                    .head = head,
-                    .lshoulder = lshoulder,
-                    .lhand = lhand,
-                    .rshoulder = rshoulder,
-                    .rhand = rhand,
-                };
-            }
-        } = .{},
-
-        pub const Bone = struct {
-            translation: vec3 = .init(0, 0, 0),
-            rotation: quat = .identity(),
-            scale: vec3 = .init(1, 1, 1),
-
-            pub fn matrix(this: Bone) mat4 {
-                return mat4
-                    .translate(this.translation)
-                    .mul(mat4.rotateByQuaternion(this.rotation))
-                    .mul(mat4.scale(this.scale));
-            }
-        };
-
-        pub const Pose = struct {
-            root: Bone,
-            body: Bone,
-            lshoulder: Bone,
-            lhand: Bone,
-            rshoulder: Bone,
-            rhand: Bone,
-            head: Bone,
-        };
+        targetDir: quat = .identity(),
+        lookDir: lib.SecondOrderQuat = .init(4, 0.5, 0),
+        pos: lib.SecondOrder(vec3) = .init(4, 0.6, 0),
 
         pub fn init(g: *game.State.Render, avatar: Avatar) Render {
             _ = g; // autofix
@@ -134,30 +62,21 @@ pub const Avatar = struct {
         pub fn render(this: *Render, g: *game.State.Render, gpa: std.mem.Allocator) !void {
             const avatar = g.state.avatars.get(this.id).?;
 
+            if (avatar.inputs.lstick.len() > 0.2) {
+                this.targetDir = quat.identity().rotateY(-std.math.atan2(avatar.inputs.lstick.y(), avatar.inputs.lstick.x()));
+            }
+
+            this.lookDir.update(g.dt, this.targetDir);
+            this.pos.update(g.dt, avatar.position);
+
             const color = avatarColors[avatar.id % avatarColors.len];
 
-            const run = this.runPoser.pose(this, g);
+            const model = mat4
+                .translate(this.pos.value.add(.init(0, 1, 0)))
+                .mul(mat4.rotateByQuaternion(this.lookDir.value))
+                .mul(mat4.scale(.init(0.75, 1, 0.75)));
 
-            const root = run.root.matrix();
-            try g.ctx.cube.add(gpa, root.mul(.scaleScalar(0.2)), color);
-
-            const body = root.mul(run.body.matrix());
-            try g.ctx.cylinder.add(gpa, body.mul(.scaleScalar(0.45)), color);
-
-            const lshoulder = body.mul(run.lshoulder.matrix());
-            try g.ctx.icosphere_1.add(gpa, lshoulder.mul(.scale(.init(0.2, 0.2, 0.2))), color);
-
-            const lhand = lshoulder.mul(run.lhand.matrix());
-            try g.ctx.icosphere_1.add(gpa, lhand.mul(.scale(.init(0.2, 0.2, 0.2))), color);
-
-            const rshoulder = body.mul(run.rshoulder.matrix());
-            try g.ctx.icosphere_1.add(gpa, rshoulder.mul(.scale(.init(0.2, 0.2, 0.2))), color);
-
-            const rhand = rshoulder.mul(run.rhand.matrix());
-            try g.ctx.icosphere_1.add(gpa, rhand.mul(.scale(.init(0.2, 0.2, 0.2))), color);
-
-            const head = body.mul(run.head.matrix());
-            try g.ctx.head.add(gpa, head.mul(mat4.rotateY(@as(f32, std.math.pi) / 2).mul(.scale(.init(0.35, 0.6, 0.5)))), color);
+            try g.ctx.cylinder.add(gpa, model, color);
         }
     };
 };
